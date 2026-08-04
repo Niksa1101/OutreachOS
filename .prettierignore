@@ -1,0 +1,25 @@
+# Locked specification documents. These are the contract, not source we format.
+# Q112-A: the specs stay byte-identical; elaborations live in the questionnaire
+# and contradictions get an ADR that supersedes a named section.
+PRD.md
+Tech.md
+DB.md
+
+# Verbatim record of the 126-question specification interview. Reformatting it
+# would defeat the point of the word "verbatim".
+docs/decisions/p0-questionnaire.md
+
+# Generated
+pnpm-lock.yaml
+uv.lock
+Cargo.lock
+frontend/src/core/api/schema.d.ts
+
+# Build output and vendored binaries
+frontend/dist/
+src-tauri/target/
+src-tauri/gen/
+vendor/
+
+# Python is Ruff's territory; Prettier never touches it.
+backend/

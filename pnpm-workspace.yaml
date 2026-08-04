@@ -1,0 +1,7 @@
+packages:
+  - frontend
+# pnpm 11 blocks postinstall scripts by default. esbuild is a required Vite
+# dependency whose install script links the correct platform binary; without it
+# Vite cannot build. Every entry here is an explicit, reviewed exception.
+allowBuilds:
+  esbuild: true

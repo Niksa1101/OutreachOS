@@ -1,0 +1,30 @@
+{
+  "name": "outreachos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Modular desktop workspace for outbound sales. V1 ships one module: Video Composer.",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "pnpm run lint:js && pnpm run lint:py",
+    "lint:js": "pnpm --filter @outreachos/frontend lint",
+    "lint:py": "uv run --directory backend ruff check . && uv run --directory backend ruff format --check .",
+    "typecheck": "pnpm run typecheck:js && pnpm run typecheck:py",
+    "typecheck:js": "pnpm --filter @outreachos/frontend typecheck",
+    "typecheck:py": "uv run --directory backend mypy .",
+    "test": "pnpm run test:js && pnpm run test:py",
+    "test:js": "pnpm --filter @outreachos/frontend test",
+    "test:py": "uv run --directory backend pytest",
+    "build": "pnpm --filter @outreachos/frontend build",
+    "format": "prettier --write . && uv run --directory backend ruff format .",
+    "format:check": "prettier --check .",
+    "sync-version": "node scripts/sync-version.mjs",
+    "sync-version:check": "node scripts/sync-version.mjs --check"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}

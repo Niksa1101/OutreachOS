@@ -28,6 +28,12 @@ vendor/ffmpeg/*
 *.db-journal
 *.db.bak-*
 
+# --- Standalone backend workspace ---
+# Created by `pnpm dev:backend` (Q55), which runs the sidecar with no Rust in
+# the picture. Never the workspace a real run uses — that one is user-chosen
+# and lives outside the repository entirely.
+.dev-workspace/
+
 # --- Environment ---
 .env
 .env.*

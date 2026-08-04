@@ -5,14 +5,21 @@
 //! checkpoint 3 on) the sidecar control-line parser — without standing up a
 //! Tauri runtime. Q107.
 
+mod boot;
 mod commands;
+mod diagnostics;
 mod logging;
 mod paths;
+mod sidecar;
 mod window;
 
+use std::sync::Arc;
 use std::time::Duration;
 
+use tauri::{Manager, RunEvent};
 use uuid::Uuid;
+
+use crate::boot::BootMachine;
 
 /// How long to wait for `invoke("app_ready")` before showing the window anyway.
 ///
@@ -25,25 +32,28 @@ const APP_READY_WATCHDOG: Duration = Duration::from_secs(3);
 
 /// Build and run the application. Returns when the last window closes.
 pub fn run() {
-    // Q75: Rust owns `boot_id` and generates it once per spawn. It is the
-    // answer to "did the sidecar silently restart?", so it has to be minted
-    // before anything that could restart.
-    let boot_id = Uuid::new_v4().to_string();
+    // Identifies this *launch* in the boot log's per-run separator (Q119).
+    //
+    // Not to be confused with the sidecar's `boot_id`, which Q75 mints per
+    // *spawn* — Retry produces a new one without starting a new launch, so the
+    // two cannot be the same value. Each spawn logs its own id, so a line in
+    // boot.log can be tied to both.
+    let launch_id = Uuid::new_v4().to_string();
 
     // Q57: `--dev` derives from `cfg!(debug_assertions)` and sets the default
     // log level to DEBUG. There is no `--log-level` on the Rust side — that
     // argument is passed *to Python*; Rust's own verbosity follows the build.
-    let (log_path, _log_guard) = logging::init(&boot_id, cfg!(debug_assertions));
+    let (log_path, _log_guard) = logging::init(&launch_id, cfg!(debug_assertions));
 
     tracing::info!(
-        boot_id = %boot_id,
+        launch_id = %launch_id,
         version = env!("CARGO_PKG_VERSION"),
         log = %log_path.display(),
         dev = cfg!(debug_assertions),
         "OutreachOS starting"
     );
 
-    let result = tauri::Builder::default()
+    let built = tauri::Builder::default()
         // Q22: a second launch focuses the first and exits. Two processes
         // against one SQLite workspace is a corruption path, and this plugin
         // must be registered first for its handler to intercept the launch.
@@ -66,10 +76,20 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             commands::app_ready,
+            commands::get_boot_state,
+            commands::get_backend_info,
+            commands::retry_boot,
             commands::log_client_error
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            // Q54: Rust owns the boot state machine. It is started here rather
+            // than lazily on first invoke, so the sidecar handshake overlaps
+            // the webview's own startup instead of following it.
+            let machine = Arc::new(BootMachine::new(handle.clone()));
+            app.manage(Arc::clone(&machine));
+            machine.start();
 
             std::thread::spawn(move || {
                 std::thread::sleep(APP_READY_WATCHDOG);
@@ -86,14 +106,31 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!());
 
-    if let Err(error) = result {
-        tracing::error!(%error, "the application exited with an error");
-        // The log guard drops here and flushes. Exiting through a panic would
-        // skip that and lose the line that explains why we exited.
-        std::process::exit(1);
-    }
+    let app = match built {
+        Ok(app) => app,
+        Err(error) => {
+            tracing::error!(%error, "the application failed to start");
+            // Returning rather than panicking: the log guard drops on the way
+            // out and flushes the line that explains why.
+            return;
+        }
+    };
 
-    tracing::info!(boot_id = %boot_id, "OutreachOS exiting");
+    app.run(move |handle, event| {
+        if matches!(event, RunEvent::Exit) {
+            // Q38's Job Object would kill the sidecar regardless, but only
+            // abruptly. Going through stdin EOF gives Python the shutdown
+            // sequence in Q118 — release the SSE streams, stop uvicorn, remove
+            // `.oos-lock`, flush the log — which is what stops the *next*
+            // launch from finding a stale lock it has to reason about.
+            if let Some(machine) = handle.try_state::<Arc<BootMachine>>() {
+                tracing::info!("shutting down");
+                machine.shutdown();
+            }
+        }
+    });
+
+    tracing::info!(launch_id = %launch_id, "OutreachOS exiting");
 }

@@ -2457,6 +2457,7 @@ dependencies = [
 name = "outreachos"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.3.4",
  "serde",
  "serde_json",
  "tauri",
@@ -2472,6 +2473,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "uuid",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

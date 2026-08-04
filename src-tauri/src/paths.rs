@@ -39,6 +39,66 @@ pub fn boot_log_path() -> PathBuf {
     app_logs_dir().join("boot.log")
 }
 
+/// How the sidecar is reached, resolved by build profile (Q79).
+///
+/// Both branches are logged at boot so a packaged build that cannot find its
+/// own backend says where it looked.
+#[derive(Debug, Clone)]
+pub struct SidecarPaths {
+    /// The executable to run.
+    pub program: PathBuf,
+    /// Arguments that come before the configuration flags. Empty for a frozen
+    /// build; `-m outreachos_backend` in dev.
+    pub leading_args: Vec<String>,
+    /// Q98: the FFmpeg *directory*, not the executable. P1 needs
+    /// `ffprobe.exe` too, and one argument beats two that can disagree.
+    pub ffmpeg_dir: PathBuf,
+}
+
+/// Resolve the sidecar for a debug build.
+///
+/// Q7: dev runs the interpreter from the uv venv; the spawn code is otherwise
+/// identical to release. Q55 rejects an "attach to an external backend" branch
+/// outright — it would be a second lifecycle with no stdin token handoff, no
+/// Job Object and no port parse, exercised only in dev and therefore certain to
+/// diverge from the one that ships.
+#[cfg(debug_assertions)]
+pub fn sidecar_paths(_resource_dir: Option<&std::path::Path>) -> SidecarPaths {
+    // CARGO_MANIFEST_DIR is `src-tauri/`; the repository root is its parent.
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    SidecarPaths {
+        program: repo_root.join("backend/.venv/Scripts/python.exe"),
+        leading_args: vec!["-m".to_owned(), "outreachos_backend".to_owned()],
+        ffmpeg_dir: repo_root.join("vendor/ffmpeg"),
+    }
+}
+
+/// Resolve the sidecar for a release build.
+///
+/// ADR-0006: PyInstaller `onedir`, so this is an executable sitting beside its
+/// `_internal/` directory, not a single file. `onefile` extracts the whole
+/// bundle to `%TEMP%` on every launch, which is both the multi-second cold
+/// start the handshake budgets were sized around and the shape AV heuristics
+/// flag hardest.
+#[cfg(not(debug_assertions))]
+pub fn sidecar_paths(resource_dir: Option<&std::path::Path>) -> SidecarPaths {
+    let resources = resource_dir
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    SidecarPaths {
+        // Q: no target-triple suffix. That convention belongs to
+        // tauri-plugin-shell's sidecar API, which ADR-0003 dropped.
+        program: resources.join("backend/outreachos-backend.exe"),
+        leading_args: Vec::new(),
+        ffmpeg_dir: resources.join("ffmpeg"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

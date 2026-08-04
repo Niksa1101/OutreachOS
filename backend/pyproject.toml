@@ -17,6 +17,13 @@ dependencies = [
 dev = [
     "mypy>=1.14",
     "pytest>=8.3",
+    # The SSE bus is the only async surface in the application (Q31: everything
+    # else is sync `def` endpoints), and its shutdown path is exactly the part
+    # that cannot be tested synchronously.
+    "pytest-asyncio>=0.25",
+    # Exercises the app through the real ASGI stack — middleware, dependency
+    # tree, exception handlers — without binding a port.
+    "httpx>=0.28",
     "ruff>=0.8",
 ]
 
@@ -59,3 +66,5 @@ exclude = ["^alembic/versions/"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

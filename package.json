@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "tauri dev",
     "tauri": "tauri",
+    "dev:backend": "uv run --directory backend python -m outreachos_backend --dev --workspace ../.dev-workspace",
     "lint": "pnpm run lint:js && pnpm run lint:py",
     "lint:js": "pnpm --filter @outreachos/frontend lint",
     "lint:py": "uv run --directory backend ruff check . && uv run --directory backend ruff format --check .",

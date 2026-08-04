@@ -5,9 +5,12 @@
 //! should be one. A command earns its place here only when it must work while
 //! the sidecar is dead or has never existed.
 
-use serde::Deserialize;
-use tauri::AppHandle;
+use std::sync::Arc;
 
+use serde::Deserialize;
+use tauri::{AppHandle, State};
+
+use crate::boot::{BackendInfo, BootMachine, BootState};
 use crate::logging::CLIENT_TARGET;
 use crate::window;
 
@@ -31,6 +34,37 @@ pub struct ClientError {
     pub stack: Option<String>,
     /// The route at the time, when the router is already mounted.
     pub route: Option<String>,
+}
+
+/// Q54: called once on mount, so React starts from the same snapshot type the
+/// `boot://state` event delivers. One reducer, one shape, no reconciliation
+/// between an initial fetch and a stream.
+#[tauri::command]
+pub fn get_boot_state(machine: State<'_, Arc<BootMachine>>) -> BootState {
+    machine.snapshot()
+}
+
+/// Q9: how the frontend learns the port and the shared secret.
+///
+/// A command rather than a field on the boot state, deliberately. The state is
+/// broadcast to every listener; this is pulled once, into a module-scoped
+/// binding in `core/api` that is never exported (Q56).
+///
+/// `None` while there is no live backend — the caller is expected to be in the
+/// ready phase, and a `null` here means it raced a restart.
+#[tauri::command]
+pub fn get_backend_info(machine: State<'_, Arc<BootMachine>>) -> Option<BackendInfo> {
+    machine.backend_info()
+}
+
+/// Re-run the entire boot sequence: new spawn, new token, new `boot_id`.
+///
+/// Q78 — which is exactly why the frontend must clear the query cache before
+/// returning to the remembered route on success.
+#[tauri::command]
+pub fn retry_boot(machine: State<'_, Arc<BootMachine>>) {
+    tracing::info!("retry requested");
+    machine.start();
 }
 
 /// Q64: the pre-ready half of frontend error ingestion.

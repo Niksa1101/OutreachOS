@@ -49,6 +49,18 @@ tracing-appender = "0.2"
 
 time = { version = "0.3", features = ["formatting", "macros"] }
 uuid = { version = "1", features = ["v4"] }
+# Q9: the 32-byte shared secret. A dedicated CSPRNG rather than deriving one
+# from `uuid`, so the intent is stated where the bytes are produced.
+getrandom = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+# Q38: the Job Object. `windows-sys` rather than `windows` — these are four raw
+# calls with no need for the safe wrapper layer's build cost.
+windows-sys = { version = "0.60", features = [
+    "Win32_Foundation",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
 
 [profile.release]
 # The sourcemap story is on the frontend side (Q100). Rust just ships small.

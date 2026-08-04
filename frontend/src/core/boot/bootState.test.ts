@@ -99,4 +99,10 @@ describe('bootReducer', () => {
 
     expect(model.sessionEpoch).toBe(3);
   });
+
+  it('preserves ipcUnavailable across snapshot updates', () => {
+    const withIpc = { ...initialBootModel, ipcUnavailable: true };
+    const next = apply(withIpc, snapshot({ phase: 'starting_backend', boot_id: 'a' }));
+    expect(next.ipcUnavailable).toBe(true);
+  });
 });

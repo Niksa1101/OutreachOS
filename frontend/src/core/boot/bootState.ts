@@ -65,6 +65,8 @@ export interface BootModel {
    * spurious clear, and a re-delivered snapshot does not either.
    */
   sessionEpoch: number;
+  /** True when Tauri IPC is unavailable (plain browser tab). */
+  ipcUnavailable: boolean;
 }
 
 export type BootAction = { type: 'snapshot'; snapshot: BootSnapshot };
@@ -79,6 +81,7 @@ export const initialBootModel: BootModel = {
     diagnostic: null,
   },
   sessionEpoch: 0,
+  ipcUnavailable: false,
 };
 
 export function bootReducer(model: BootModel, action: BootAction): BootModel {
@@ -93,5 +96,6 @@ export function bootReducer(model: BootModel, action: BootAction): BootModel {
   return {
     snapshot: next,
     sessionEpoch: becameReadyUnderANewBootId ? model.sessionEpoch + 1 : model.sessionEpoch,
+    ipcUnavailable: model.ipcUnavailable,
   };
 }

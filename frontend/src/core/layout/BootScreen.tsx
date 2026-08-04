@@ -14,11 +14,13 @@
 
 import { useEffect, useState } from 'react';
 
+import { useBootModel } from '@/core/boot/bootStore';
 import { bootSurface, mono } from '@/core/layout/bootStyles';
 
 const SPINNER_DELAY_MS = 400;
 
 export function BootScreen({ status }: { status: string }) {
+  const { ipcUnavailable } = useBootModel();
   const [showActivity, setShowActivity] = useState(false);
 
   useEffect(() => {
@@ -32,6 +34,11 @@ export function BootScreen({ status }: { status: string }) {
         OutreachOS
       </h1>
       <p style={{ margin: 0, fontSize: '0.875rem', opacity: showActivity ? 0.6 : 0 }}>{status}</p>
+      {ipcUnavailable ? (
+        <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.75, maxWidth: '28rem' }}>
+          Run inside the Tauri app (<code style={mono}>pnpm dev</code>), not a browser tab.
+        </p>
+      ) : null}
       <span style={{ ...mono, opacity: 0 }} aria-hidden>
         {/* Reserves the status line's height so the layout does not shift when
             the text appears. */}

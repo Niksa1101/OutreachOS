@@ -4,16 +4,11 @@
  * ADR-0005 / Q42: `eventsource` v3 (rexxars), not the native `EventSource` and
  * not `@microsoft/fetch-event-source`.
  *
- * - Native `EventSource` cannot set an `Authorization` header, and Q43 allows
- *   no exemptions — including for this stream.
- * - `@microsoft/fetch-event-source` has been unmaintained since 2022 with known
- *   reconnect bugs nobody is fixing.
+ * Reconnect is owned here — on transport error the source is closed and rebuilt
+ * manually after `RECONNECT_DELAY_MS`. The library's own retry is not relied
+ * on, because it would compete with the heartbeat watchdog.
  *
- * `eventsource` v3 accepts a custom `fetch`, which is exactly the seam the
- * bearer token needs.
- *
- * The watchdog (Q-assumptions): the library reconnects when the connection
- * *errors*, but a half-open TCP connection produces no error — it simply goes
+ * The watchdog: a half-open TCP connection produces no error — it simply goes
  * quiet forever. 45 seconds without a heartbeat, which the server sends every
  * 15, means three missed beats and is unambiguous enough to act on.
  */
@@ -43,6 +38,31 @@ export interface EventStreamHandlers {
   onDisconnect?: (reason: string) => void;
 }
 
+function parseHeartbeat(payload: unknown): HeartbeatEvent | null {
+  if (typeof payload !== 'object' || payload === null || !('boot_id' in payload)) {
+    return null;
+  }
+  const bootId: unknown = payload.boot_id;
+  if (typeof bootId !== 'string' || bootId.length === 0) {
+    return null;
+  }
+  return { boot_id: bootId };
+}
+
+function parseResync(payload: unknown): ResyncEvent | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+  const record = payload as { boot_id?: unknown; reason?: unknown };
+  if (typeof record.boot_id !== 'string' || record.boot_id.length === 0) {
+    return null;
+  }
+  if (typeof record.reason !== 'string') {
+    return null;
+  }
+  return { boot_id: record.boot_id, reason: record.reason };
+}
+
 /**
  * One connection to `/api/v1/events`.
  *
@@ -56,6 +76,7 @@ export class EventStream {
   #reconnect: ReturnType<typeof setTimeout> | null = null;
   #lastEventId: string | null = null;
   #closed = false;
+  #opening = false;
 
   constructor(private readonly handlers: EventStreamHandlers) {}
 
@@ -69,6 +90,7 @@ export class EventStream {
     this.#clearTimers();
     this.#source?.close();
     this.#source = null;
+    this.#opening = false;
   }
 
   #clearTimers(): void {
@@ -78,18 +100,30 @@ export class EventStream {
     this.#reconnect = null;
   }
 
+  #scheduleReconnect(reason: string): void {
+    if (this.#closed) return;
+
+    this.handlers.onDisconnect?.(reason);
+    this.#source?.close();
+    this.#source = null;
+    this.#opening = false;
+
+    if (this.#reconnect !== null) clearTimeout(this.#reconnect);
+    this.#reconnect = setTimeout(() => this.#open(), RECONNECT_DELAY_MS);
+  }
+
   #open(): void {
+    if (this.#closed || this.#opening) return;
+
     const backend = currentBackend();
     if (!backend) {
-      // Credentials arrive asynchronously from `invoke("get_backend_info")` in
-      // the same tick the shell mounts. Without a retry here, a lost race leaves
-      // the stream permanently idle while the badge reads "Reconnecting…".
       if (!this.#closed) {
         this.#reconnect = setTimeout(() => this.#open(), RECONNECT_DELAY_MS);
       }
       return;
     }
 
+    this.#opening = true;
     const url = `http://127.0.0.1:${backend.port}/api/v1/events`;
 
     const source = new EventSource(url, {
@@ -98,28 +132,22 @@ export class EventStream {
         headers.set('Authorization', `Bearer ${backend.token}`);
         headers.set('Accept', 'text/event-stream');
 
-        // On the library's own reconnects it sets this itself and the two
-        // values agree. Setting it here as well is what makes a *manual*
-        // rebuild after a watchdog trip resume from the right place instead of
-        // silently restarting the stream from scratch.
         if (this.#lastEventId) {
           headers.set('Last-Event-ID', this.#lastEventId);
         }
 
-        // No timeout: this connection is meant to stay open. `core/api`'s 15s
-        // default would kill it on schedule.
         return fetch(input, { ...init, headers });
       },
     });
 
     source.onopen = () => {
+      this.#opening = false;
       this.handlers.onOpen?.();
       this.#armWatchdog();
     };
 
     source.onerror = () => {
-      // The library retries on its own; this is reporting, not recovery.
-      this.handlers.onDisconnect?.('The event stream errored.');
+      this.#scheduleReconnect('The event stream errored.');
     };
 
     for (const name of SERVER_EVENT_NAMES) {
@@ -129,39 +157,37 @@ export class EventStream {
     }
 
     this.#source = source;
-    this.#armWatchdog();
   }
 
   #handle(name: ServerEventName, event: MessageEvent<string>): void {
-    // Heartbeats carry no `id:`, so `lastEventId` is empty on them and the
-    // stored value correctly stays where the last *real* event left it.
     if (event.lastEventId) {
       this.#lastEventId = event.lastEventId;
     }
 
-    // Any traffic proves the connection is alive. The watchdog is specified
-    // against heartbeats, and resetting on real events too can only make it
-    // less trigger-happy — never more.
     this.#armWatchdog();
 
     let payload: unknown;
     try {
       payload = JSON.parse(event.data);
     } catch {
-      // A frame we cannot parse is a protocol violation, not data. Dropping it
-      // is right; tearing down the stream over it is not.
       return;
     }
 
-    // The casts are the JSON boundary and nothing more: `JSON.parse` returns
-    // `unknown`, and this is the one place a wire frame becomes a typed event.
     switch (name) {
-      case 'heartbeat':
-        this.handlers.onEvent?.({ name: 'heartbeat', payload: payload as HeartbeatEvent });
+      case 'heartbeat': {
+        const heartbeat = parseHeartbeat(payload);
+        if (heartbeat) {
+          this.handlers.onEvent?.({ name: 'heartbeat', payload: heartbeat });
+        }
         return;
-      case 'resync':
-        this.handlers.onEvent?.({ name: 'resync', payload: payload as ResyncEvent });
+      }
+      case 'resync': {
+        const resync = parseResync(payload);
+        if (resync) {
+          this.handlers.onEvent?.({ name: 'resync', payload: resync });
+        }
         return;
+      }
     }
   }
 
@@ -170,15 +196,7 @@ export class EventStream {
     if (this.#closed) return;
 
     this.#watchdog = setTimeout(() => {
-      this.handlers.onDisconnect?.(
-        `No heartbeat for ${HEARTBEAT_WATCHDOG_MS / 1000}s; reconnecting.`,
-      );
-
-      this.#source?.close();
-      this.#source = null;
-
-      if (this.#closed) return;
-      this.#reconnect = setTimeout(() => this.#open(), RECONNECT_DELAY_MS);
+      this.#scheduleReconnect(`No heartbeat for ${HEARTBEAT_WATCHDOG_MS / 1000}s; reconnecting.`);
     }, HEARTBEAT_WATCHDOG_MS);
   }
 }

@@ -40,9 +40,6 @@ function subscribe(listener: () => void): () => void {
 
 function push(snapshot: BootSnapshot): void {
   const next = bootReducer(model, { type: 'snapshot', snapshot });
-  // Identity comparison is enough: the reducer always returns a new object
-  // when anything changed, and `useSyncExternalStore` would loop forever on a
-  // getter that returned a fresh object every call.
   if (next === model) return;
 
   model = next;
@@ -58,16 +55,15 @@ export async function startBootSubscription(): Promise<void> {
   started = true;
 
   try {
-    // Listener first. Between `get_boot_state` returning and a listener being
-    // attached there is a window in which a transition would be dropped, and
-    // on a fast handshake that window contains `ready`.
     await listen<BootSnapshot>(BOOT_STATE_EVENT, (event) => push(event.payload));
     push(await invoke<BootSnapshot>('get_boot_state'));
   } catch {
-    // Outside a Tauri webview there is no IPC bridge. The boot screen stays on
-    // its initial state rather than throwing into the error boundary, which
-    // would make `vite dev` in a plain browser unusable.
     started = false;
+    model = {
+      ...model,
+      ipcUnavailable: true,
+    };
+    for (const listener of listeners) listener();
   }
 }
 

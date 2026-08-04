@@ -11,11 +11,13 @@
 import { useStreamStatus } from '@/core/sse/streamStatus';
 
 export function ConnectionBadge() {
-  const { connected, lastHeartbeatAt } = useStreamStatus();
+  const { connected, lastHeartbeatAt, lastMessage } = useStreamStatus();
 
-  const title = lastHeartbeatAt
-    ? `Last heartbeat at ${lastHeartbeatAt.toLocaleTimeString()}`
-    : 'Waiting for the first heartbeat';
+  const title = connected
+    ? lastHeartbeatAt
+      ? `Last heartbeat at ${lastHeartbeatAt.toLocaleTimeString()}`
+      : 'Waiting for the first heartbeat'
+    : (lastMessage ?? 'Reconnecting to the event stream');
 
   return (
     <span

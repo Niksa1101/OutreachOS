@@ -53,13 +53,56 @@ jobs:
   # rotation while another process holds the file open. Ubuntu would report
   # green on all of it.
   #
-  # This runner needs no Node. The Rust steps (cargo fmt / clippy / test) and
-  # the frontend-dist download join in checkpoint 2, when src-tauri exists.
+  # This runner needs no Node (Q122). It consumes the frontend job's dist/
+  # artifact instead, because tauri-build fails at build.rs time when
+  # frontendDist does not exist and building the frontend twice is pure waste.
   windows:
-    name: windows (backend lint, typecheck, test)
+    name: windows (rust + backend)
     runs-on: windows-latest
+    needs: frontend
     steps:
       - uses: actions/checkout@v4
+
+      # --- Rust -------------------------------------------------------------
+      #
+      # Q29: Rust is the most fragile code in P0 and the least covered by
+      # tests, so `fmt --check` and `clippy` keep it from rotting silently.
+      # Still no `tauri build` here — release builds stay manual per the PRD.
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Q122: on Windows the cargo target directory is large enough that an
+      # uncached job dominates total run time.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+
+      # --- Backend ----------------------------------------------------------
+      #
+      # Q69: pytest runs here rather than on ubuntu. Windows is the only target
+      # and the P0 backend touches exactly what differs — workspace path
+      # handling, SQLite file locking, and a rotating log handler that fails to
+      # rotate while another process holds the file open. Ubuntu would report
+      # green on all of it.
 
       - uses: astral-sh/setup-uv@v5
         with:

@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "The only capability set in the application. Scoped to the single `main` window (Q22 rejects multi-window outright), and deliberately minimal: every permission here was added because a named P0 screen needs it.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
+
+    "dialog:allow-open",
+
+    "store:default",
+
+    "opener:allow-open-path",
+
+    "clipboard-manager:allow-write-text"
+  ]
+}

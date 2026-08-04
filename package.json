@@ -9,6 +9,8 @@
     "node": ">=20"
   },
   "scripts": {
+    "dev": "tauri dev",
+    "tauri": "tauri",
     "lint": "pnpm run lint:js && pnpm run lint:py",
     "lint:js": "pnpm --filter @outreachos/frontend lint",
     "lint:py": "uv run --directory backend ruff check . && uv run --directory backend ruff format --check .",
@@ -25,6 +27,7 @@
     "sync-version:check": "node scripts/sync-version.mjs --check"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "prettier": "^3.4.2"
   }
 }

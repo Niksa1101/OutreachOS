@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A superseded run is wasted compute. Cancel it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Platform-agnostic work runs on the fast runner. This job also produces the
+  # frontend/dist artifact that the Windows job consumes from checkpoint 2 —
+  # tauri-build fails at build.rs time if frontendDist does not exist, and
+  # building the frontend twice would be pure waste.
+  frontend:
+    name: frontend (lint, typecheck, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Cheap, platform-agnostic, and catches a bump that only reached one file.
+      - name: Version divergence check
+        run: node scripts/sync-version.mjs --check
+
+      - run: pnpm run format:check
+      - run: pnpm run lint:js
+      - run: pnpm run typecheck:js
+      - run: pnpm run test:js
+      - run: pnpm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  # Windows is the only target platform, and the backend touches exactly the
+  # things that differ there: path handling, SQLite file locking, and log
+  # rotation while another process holds the file open. Ubuntu would report
+  # green on all of it.
+  #
+  # This runner needs no Node. The Rust steps (cargo fmt / clippy / test) and
+  # the frontend-dist download join in checkpoint 2, when src-tauri exists.
+  windows:
+    name: windows (backend lint, typecheck, test)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install backend dependencies
+        run: uv sync --directory backend --frozen
+
+      - run: uv run --directory backend ruff check .
+      - run: uv run --directory backend ruff format --check .
+      - run: uv run --directory backend mypy .
+      - run: uv run --directory backend pytest

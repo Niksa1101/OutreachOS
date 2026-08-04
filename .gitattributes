@@ -1,0 +1,27 @@
+# Normalize line endings on commit, check out LF everywhere.
+# Without this, core.autocrlf fights Prettier and cargo fmt forever on Windows.
+* text=auto eol=lf
+
+# PowerShell scripts must keep CRLF to stay reliable under Windows PowerShell 5.1.
+*.ps1 eol=crlf
+*.cmd eol=crlf
+*.bat eol=crlf
+
+# Binary assets: never touched by text=auto.
+*.woff2 binary
+*.woff   binary
+*.ttf    binary
+*.otf    binary
+*.exe    binary
+*.dll    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.ico    binary
+*.mp4    binary
+*.mov    binary
+
+# Lockfiles are generated; collapse them in diffs.
+pnpm-lock.yaml linguist-generated=true -diff
+uv.lock        linguist-generated=true -diff
+Cargo.lock     linguist-generated=true -diff

@@ -1,0 +1,46 @@
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# --- Rust / Tauri ---
+src-tauri/target/
+src-tauri/gen/
+
+# --- Python / backend ---
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# --- Vendored binaries (fetched by scripts/fetch-ffmpeg.ps1, never committed) ---
+vendor/ffmpeg/*
+!vendor/ffmpeg/.gitkeep
+
+# --- Local databases (never committed; the workspace lives outside the repo) ---
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.db.bak-*
+
+# --- Environment ---
+.env
+.env.*
+!.env.example
+
+# --- Build artifacts ---
+*.map
+dist/
+build/
+
+# --- OS / editor ---
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

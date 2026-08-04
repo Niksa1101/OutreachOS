@@ -1,0 +1,236 @@
+# OutreachOS — Technology Stack
+
+> Companion to [`PRD.md`](PRD.md) (scope, phases, behavior) and [`DB.md`](DB.md) (schema and data contracts).
+
+Every entry below is a locked decision. Additions or substitutions require an ADR in `docs/adr/`.
+
+**Guiding constraints:** no network calls · no third-party APIs · no heavy abstraction over FFmpeg · nothing that couples a module to another module.
+
+---
+
+## 1. Toolchain
+
+| Tool | Version | Notes |
+|---|---|---|
+| Python | **3.12** | Widest wheel and PyInstaller support for the AI libraries expected in later modules |
+| Node.js | 20 LTS or newer | |
+| Package manager (JS) | **pnpm** | Faster installs, stricter dependency tree |
+| Package manager (Python) | **uv** | `pyproject.toml` + lockfile; lockfile determinism matters for reproducible PyInstaller builds |
+| Rust | Stable (via rustup) | Required by Tauri |
+| Git | — | `main` branch, Conventional Commits with module scopes |
+
+---
+
+## 2. Desktop Shell
+
+### Tauri 2
+
+Native desktop performance with a web frontend, at a fraction of Electron's footprint.
+
+**Responsibilities**
+- Window and application lifecycle
+- **Sidecar management** — spawning, supervising, and terminating the Python backend
+- Port allocation and shared-secret token generation, passed to the frontend at boot
+- Native dialogs (folder picker for workspace and export)
+- OS path resolution for the app-data workspace pointer
+- **Single-instance enforcement** — two processes against one SQLite workspace is a corruption path
+- Windows installer generation
+
+**Identity:** `OutreachOS` · `com.outreachos.app` · placeholder icon, replaceable.
+
+**Rust is deliberately thin.** It is a shell, not a third business-logic layer. All domain logic lives in Python.
+
+---
+
+## 3. Frontend
+
+| Technology | Purpose |
+|---|---|
+| **React 19** | UI runtime |
+| **TypeScript** | Strict mode, no implicit `any` |
+| **Vite** | Dev server and build |
+| **Tailwind CSS** | Utility styling, driven entirely by design tokens |
+| **shadcn/ui** | Component primitives — see §3.1, mandatory |
+| **TanStack Router** | Type-safe routing; params pair naturally with generated API types |
+| **TanStack Query** | All server state — caching, invalidation, SSE-driven updates |
+| **Zustand** | Local UI state only (editor interaction, transient panel state) |
+| **React Hook Form + Zod** | Campaign and settings forms; Zod schemas mirror backend contracts |
+| **dnd-kit** | Queue reordering |
+| **Framer Motion** | Micro-interactions only |
+
+### 3.1 shadcn/ui — mandatory workflow
+
+```bash
+npx shadcn@latest init --preset b51GFh7y6 --template next --pointer
+```
+
+```bash
+npx shadcn@latest add button dialog table
+```
+
+**Every agent or developer building UI must use this.** Check the shadcn registry before writing any component. shadcn provides primitives; the visual identity is ours. Custom components live in `frontend/src/core/ui/`, composed from shadcn primitives, styled exclusively through tokens.
+
+> ⚠ The preset targets `--template next`, but this project is Vite + Tauri. Resolve during P0: keep the preset ID (it carries the design configuration), adjust only the template target, and record the outcome in an ADR.
+
+### 3.2 State ownership
+
+- **TanStack Query** owns everything from the API. SSE events invalidate or patch the cache — hand-rolled fetching would reimplement this badly.
+- **Zustand** owns only ephemeral UI state.
+- **No global store for server data.** Ever.
+
+### 3.3 Design tokens
+
+Defined in P0, before any component exists. Dark-only in V1, light-ready in structure.
+
+Color · spacing scale · typography scale · border radius scale · elevation/shadow · motion durations and easing.
+
+**Hardcoded colors and spacing values are a review failure.**
+
+### 3.4 Module structure
+
+```
+frontend/src/
+  core/          # api client, SSE, ui/, tokens, layout, router, module registry
+  modules/
+    video-composer/
+      routes/ components/ hooks/ api/ state/
+```
+
+Each module registers its nav entry, icon, and routes in the registry. Adding CRM later is a folder plus one registry line. **Cross-module imports are forbidden by ESLint** — shared code moves to `core/`.
+
+---
+
+## 4. Backend
+
+| Technology | Purpose |
+|---|---|
+| **Python 3.12** | Chosen for the AI capabilities expected in later modules (Whisper, transcription, analysis) |
+| **FastAPI** | Local HTTP API |
+| **Uvicorn** | ASGI server |
+| **Pydantic v2** | Request/response models — the single source of truth for API types |
+| **SQLAlchemy 2.x** | ORM |
+| **Alembic** | Migrations, auto-applied at startup |
+| **Pillow** | Overlay mask, border, shadow, and background rendering |
+| **PyInstaller** | Freezes the backend into a single sidecar executable |
+
+### 4.1 Transport
+
+- **REST** under `/api/v1` for all commands and CRUD
+- **One SSE stream** for queue and progress events — one-directional, trivial in FastAPI, auto-reconnecting, no protocol machinery
+
+### 4.2 Access control
+
+Bound to `127.0.0.1` on a **random free port**, with a **shared-secret token** generated by Tauri at launch and required on every request. Prevents any other local process — including a browser tab — from driving the renderer.
+
+### 4.3 Backend structure
+
+```
+backend/app/
+  core/         # config, db session, event bus, settings, workspace paths, logging
+  modules/
+    video_composer/   # router, service, models, schemas
+  rendering/
+    ffmpeg.py         # binary resolution + process wrapper
+    probe.py          # FFprobe
+    overlay_builder.py # Pillow asset generation
+    steps/            # composite step objects
+    pipeline.py       # filtergraph assembly
+    queue/            # worker pool, job state machine
+  vendor/ffmpeg/      # bundled static binaries
+alembic/
+```
+
+Core services — database session, event bus, settings, workspace paths, and the job queue — are **shared infrastructure**. Future modules reuse the queue for scraping, enrichment, and AI work.
+
+### 4.4 Type sharing
+
+FastAPI emits OpenAPI → **`openapi-typescript`** generates TS types → a **thin typed fetch wrapper** carries the auth token.
+
+Regenerated **manually via script** when the API changes. Pydantic models are the single source of truth; TypeScript interfaces are never hand-maintained.
+
+---
+
+## 5. Video Processing
+
+### FFmpeg + FFprobe
+
+**Static builds bundled in the application**, resolved by explicit path — **never from `PATH`**. Version is pinned so filter behavior is identical on every machine, and the app works on a clean install with zero setup.
+
+Licensing attribution ships with the installer; the build variant (LGPL vs GPL) is chosen deliberately in P6.
+
+**Python orchestrates FFmpeg. It does not replace it.** No `ffmpeg-python`, no `moviepy`, no wrapper library — commands are constructed explicitly and remain readable, debuggable, and copy-pasteable into a terminal.
+
+### 5.1 Codecs
+
+| Purpose | Codec |
+|---|---|
+| Final output video | H.264 (`h264_nvenc` / `h264_qsv` / `h264_amf` / `libx264`) |
+| Final output audio | AAC 192kbps stereo 48kHz |
+| Cached alpha clip | ProRes 4444 (`prores_ks`) — fallback QTRLE or VP9-alpha |
+| Container | MP4 with `+faststart` |
+
+### 5.2 Encoder selection
+
+Probed once at startup: **NVENC → QSV → AMF → libx264**. Silent fallback to CPU. Overridable in Settings.
+
+**Golden-frame tests always force `libx264` with fixed settings** — hardware encoders are not bit-deterministic and would make the suite flaky.
+
+### 5.3 Performance decisions
+
+- Trim uses **input-side `-ss`/`-t`** so FFmpeg seeks instead of decoding a 10-minute recording to keep 25 seconds
+- The alpha clip is encoded at **overlay bounding-box size, not full canvas**
+- Talking-head audio lives **inside** the cached alpha clip, avoiding a second decode of the source per job
+- One FFmpeg process per job — never chained invocations through intermediate files
+
+---
+
+## 6. Data
+
+| Technology | Purpose |
+|---|---|
+| **SQLite** | Single-file database inside the user-chosen workspace |
+| **SQLAlchemy 2.x** | ORM and query layer |
+| **Alembic** | Versioned migrations, auto-applied at backend startup |
+| **Tauri store** | OS app-data — holds **only** the workspace pointer |
+
+The workspace pointer cannot live inside the workspace it points to. See [`DB.md`](DB.md) for the full schema, JSON contracts, and state enums.
+
+---
+
+## 7. Testing & CI
+
+| Tool | Scope |
+|---|---|
+| **pytest** | Backend services, filtergraph builder, cache keys, queue state machine |
+| **Golden-frame suite** | Synthetic FFmpeg fixtures (`testsrc`, `sine`) + one committed real sample; deterministic libx264; lossless PNG comparison with tolerance |
+| **Vitest** | Frontend logic only — overlay geometry, filename cleanup parity, clamping |
+| **GitHub Actions** | Lint, typecheck, test on push. Release builds manual in V1. |
+
+No component tests. No E2E. Tests go where bugs are invisible.
+
+---
+
+## 8. Deliberately Not Used
+
+| Rejected | Reason |
+|---|---|
+| Electron | Footprint; Tauri is the modern equivalent |
+| `moviepy` / `ffmpeg-python` | Heavy abstraction over the tool we actually want to control |
+| Redux Toolkit | TanStack Query already owns server state correctly |
+| React Router | TanStack Router's type safety pairs better with generated API types |
+| Poetry / Conda | `uv` is faster and produces more reliable lockfiles for frozen builds |
+| Headless browser for overlay rendering | Ships a browser into the render path for a batch tool |
+| WebSockets | SSE is one-directional and sufficient; no need for duplex |
+| Any cloud service, telemetry, or crash reporting | The application makes no network calls |
+| Auto-update (V1) | Deferred; Tauri's updater can be added without architectural change |
+
+---
+
+## 9. Version Pinning Policy
+
+- Python dependencies pinned via `uv` lockfile — **required** for reproducible PyInstaller output
+- JS dependencies pinned via `pnpm-lock.yaml`
+- FFmpeg binaries pinned to a specific build; the version string is displayed in Settings
+- Node, Python, and Rust versions declared in the repository and enforced in CI
+
+Bundled FFmpeg is upgraded **only** with a full golden-frame re-verification. Filter behavior can change between builds, and silent visual drift in a batch of 30 client-facing videos is the worst possible failure mode.

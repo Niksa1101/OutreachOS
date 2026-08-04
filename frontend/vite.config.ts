@@ -1,12 +1,15 @@
 import { fileURLToPath, URL } from 'node:url';
 
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 // From vitest/config, not vite — vite's own defineConfig has no `test` key.
 import { defineConfig } from 'vitest/config';
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  // Q45: Tailwind v4, through its Vite plugin rather than a PostCSS chain.
+  // The plugin is what makes the CSS-first `@theme` directive work.
+  plugins: [react(), tailwindcss()],
 
   resolve: {
     alias: {

@@ -81,8 +81,12 @@ export class EventStream {
   #open(): void {
     const backend = currentBackend();
     if (!backend) {
-      // No credentials yet. The provider only mounts in the ready phase, so
-      // this means a teardown raced us.
+      // Credentials arrive asynchronously from `invoke("get_backend_info")` in
+      // the same tick the shell mounts. Without a retry here, a lost race leaves
+      // the stream permanently idle while the badge reads "Reconnecting…".
+      if (!this.#closed) {
+        this.#reconnect = setTimeout(() => this.#open(), RECONNECT_DELAY_MS);
+      }
       return;
     }
 

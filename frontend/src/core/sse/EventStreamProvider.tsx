@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { primeBackendInfo } from '@/core/api/client';
 import { EventStream } from '@/core/sse/client';
 import { StreamStatusContext } from '@/core/sse/streamStatus';
 
@@ -29,33 +30,48 @@ export function EventStreamProvider({ sessionEpoch, children }: Props) {
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const stream = new EventStream({
-      onOpen: () => {
-        setConnected(true);
-        setLastMessage(null);
-      },
-      onDisconnect: (reason) => {
-        setConnected(false);
-        setLastMessage(reason);
-      },
-      onEvent: (event) => {
-        switch (event.name) {
-          case 'heartbeat':
-            setConnected(true);
-            setLastHeartbeatAt(new Date());
-            return;
-          case 'resync':
-            // The server could not cover our `Last-Event-ID`. Everything we
-            // hold is suspect, so refetch rather than patch.
-            void queryClient.invalidateQueries();
-            setLastMessage(`Reconnected (${event.payload.reason}); refetched everything.`);
-            return;
-        }
-      },
-    });
+    let stream: EventStream | null = null;
+    let cancelled = false;
 
-    stream.start();
-    return () => stream.close();
+    void (async () => {
+      // Must complete before `start()`. BootSync also calls this on
+      // `sessionEpoch`, but both paths share the same deduped invoke — and
+      // awaiting here removes the race where the shell mounts first.
+      await primeBackendInfo();
+      if (cancelled) return;
+
+      stream = new EventStream({
+        onOpen: () => {
+          setConnected(true);
+          setLastMessage(null);
+        },
+        onDisconnect: (reason) => {
+          setConnected(false);
+          setLastMessage(reason);
+        },
+        onEvent: (event) => {
+          switch (event.name) {
+            case 'heartbeat':
+              setConnected(true);
+              setLastHeartbeatAt(new Date());
+              return;
+            case 'resync':
+              // The server could not cover our `Last-Event-ID`. Everything we
+              // hold is suspect, so refetch rather than patch.
+              void queryClient.invalidateQueries();
+              setLastMessage(`Reconnected (${event.payload.reason}); refetched everything.`);
+              return;
+          }
+        },
+      });
+
+      stream.start();
+    })();
+
+    return () => {
+      cancelled = true;
+      stream?.close();
+    };
   }, [queryClient, sessionEpoch]);
 
   const value = useMemo(

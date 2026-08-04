@@ -1,9 +1,9 @@
 /**
  * The application shell.
  *
- * Q104: this mounts **only** in the ready phase. The gate routes a degraded
- * backend to `/diagnostics` before it gets here, which is what lets every
- * screen inside assume a working database rather than each handling 503.
+ * Q104: this mounts only in the ready phase. Rust fails boot when `/health`
+ * reports `status: degraded`, so the shell assumes a working database rather
+ * than each screen handling 503.
  *
  * Q66: the single SSE connection is owned here, inside the ready state,
  * because before that there is no port and no token to connect with.

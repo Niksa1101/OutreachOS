@@ -71,10 +71,10 @@ export function DiagnosticsScreen() {
           break;
         }
         case 'take-over':
+          await invoke('take_over_workspace');
+          break;
         case 'proceed-without-backup':
-          // Both belong to checkpoint 5, where the lock file and the
-          // pre-migration backup exist. Presented only for codes that
-          // checkpoint 5 introduces, so neither is reachable yet.
+          await invoke('proceed_without_backup');
           break;
       }
     } finally {

@@ -196,6 +196,8 @@ pub struct SpawnRequest<'a> {
     pub workspace: &'a Path,
     pub dev: bool,
     pub resource_dir: Option<&'a Path>,
+    pub take_over: bool,
+    pub allow_without_backup: bool,
 }
 
 /// A running sidecar.
@@ -293,6 +295,14 @@ pub fn spawn(request: SpawnRequest<'_>) -> Result<Sidecar, Diagnostic> {
         command.arg("--dev");
     }
 
+    if request.take_over {
+        command.arg("--take-over");
+    }
+
+    if request.allow_without_backup {
+        command.arg("--allow-without-backup");
+    }
+
     // Note what is *not* passed: the token. Q34 — argv is readable by any
     // same-user process through WMI, so it goes over stdin below.
 
@@ -385,13 +395,9 @@ pub fn spawn(request: SpawnRequest<'_>) -> Result<Sidecar, Diagnostic> {
         _job: job,
     };
 
-    if let Err(detail) = await_health(port, request.token, &child) {
+    if let Err(diagnostic) = await_health(port, request.token, &child) {
         sidecar.shutdown();
-        return Err(Diagnostic::new(
-            DiagnosticCode::HandshakeTimeout,
-            "The backend never became ready.",
-        )
-        .with_detail(format!("{detail}\n\n{}", captured(&stderr_tail))));
+        return Err(diagnostic);
     }
 
     tracing::info!(port, "sidecar handshake complete");
@@ -460,49 +466,76 @@ fn spawn_stderr_reader(stderr: std::process::ChildStderr, tail: Arc<Mutex<Vec<St
 /* Health                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/// Poll `/health` until it answers 200 or the budget expires.
-///
-/// Hand-written rather than via an HTTP client crate. This is one GET against
-/// loopback whose only interesting part is the status line, and Tech.md §2 is
-/// explicit that Rust here is a shell — pulling in a full client stack (and
-/// with it an async runtime and a TLS implementation) to read fifteen bytes
-/// would be the opposite of thin.
-fn await_health(port: u16, token: &str, child: &Arc<Mutex<Child>>) -> Result<(), String> {
+const HEALTH_RESPONSE_CAP: usize = 8192;
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct HealthResponseBody {
+    status: String,
+    #[serde(default)]
+    diagnostic_code: Option<String>,
+    #[serde(default)]
+    detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum HealthProbe {
+    Ok,
+    Degraded {
+        code: Option<String>,
+        detail: Option<String>,
+    },
+    HttpStatus(u16),
+}
+
+/// Poll `/health` until it answers with a healthy body or the budget expires.
+fn await_health(port: u16, token: &str, child: &Arc<Mutex<Child>>) -> Result<(), Diagnostic> {
     let deadline = Instant::now() + HEALTH_BUDGET;
     let mut last_error = String::from("no response");
 
     while Instant::now() < deadline {
-        // A process that has already died will never answer. Failing here
-        // turns a 20s wait into an immediate, accurate report.
         if let Ok(mut guard) = child.lock() {
             if let Ok(Some(status)) = guard.try_wait() {
-                return Err(format!(
+                return Err(Diagnostic::new(
+                    DiagnosticCode::HandshakeTimeout,
+                    "The backend never became ready.",
+                )
+                .with_detail(format!(
                     "the process exited during the health poll ({status})"
-                ));
+                )));
             }
         }
 
         match probe_health(port, token) {
-            Ok(200) => return Ok(()),
-            Ok(status) => last_error = format!("/health returned {status}"),
+            Ok(HealthProbe::Ok) => return Ok(()),
+            Ok(HealthProbe::Degraded { code, detail }) => {
+                return Err(crate::diagnostics::diagnose_degraded_health(
+                    code.as_deref(),
+                    detail.as_deref(),
+                ));
+            }
+            Ok(HealthProbe::HttpStatus(status)) => {
+                last_error = format!("/health returned {status}");
+            }
             Err(error) => last_error = format!("/health: {error}"),
         }
 
         std::thread::sleep(HEALTH_POLL_INTERVAL);
     }
 
-    Err(format!(
-        "/health did not return 200 within 20s ({last_error})"
-    ))
+    Err(Diagnostic::new(
+        DiagnosticCode::HandshakeTimeout,
+        "The backend never became ready.",
+    )
+    .with_detail(format!(
+        "/health did not return a healthy response within 20s ({last_error})"
+    )))
 }
 
-fn probe_health(port: u16, token: &str) -> std::io::Result<u16> {
+fn probe_health(port: u16, token: &str) -> std::io::Result<HealthProbe> {
     let mut stream = TcpStream::connect(("127.0.0.1", port))?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     stream.set_write_timeout(Some(Duration::from_secs(2)))?;
 
-    // Q43 applies to us too: there are no exemptions, so the shell presents
-    // the same bearer token every other caller does.
     write!(
         stream,
         "GET /api/v1/health HTTP/1.1\r\n\
@@ -513,11 +546,59 @@ fn probe_health(port: u16, token: &str) -> std::io::Result<u16> {
     )?;
     stream.flush()?;
 
-    // Only the status line is read. The body is the frontend's business.
-    let mut buffer = [0u8; 64];
-    let read = stream.read(&mut buffer)?;
-    parse_status_code(&buffer[..read])
-        .ok_or_else(|| std::io::Error::other("unparseable status line"))
+    let response = read_http_response(&mut stream)?;
+    parse_health_probe(&response)
+}
+
+fn read_http_response(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
+    let mut buffer = Vec::new();
+    let mut chunk = [0u8; 1024];
+
+    loop {
+        let read = stream.read(&mut chunk)?;
+        if read == 0 {
+            break;
+        }
+        buffer.extend_from_slice(&chunk[..read]);
+        if buffer.len() >= HEALTH_RESPONSE_CAP {
+            break;
+        }
+    }
+
+    Ok(buffer)
+}
+
+fn parse_health_probe(bytes: &[u8]) -> std::io::Result<HealthProbe> {
+    let status =
+        parse_status_code(bytes).ok_or_else(|| std::io::Error::other("unparseable status line"))?;
+
+    if status != 200 {
+        return Ok(HealthProbe::HttpStatus(status));
+    }
+
+    let text = std::str::from_utf8(bytes)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+    let body = text
+        .split_once("\r\n\r\n")
+        .or_else(|| text.split_once("\n\n"))
+        .map(|(_, body)| body.trim())
+        .unwrap_or("");
+
+    if body.is_empty() {
+        return Ok(HealthProbe::Ok);
+    }
+
+    let parsed: HealthResponseBody = serde_json::from_str(body)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+
+    if parsed.status == "degraded" {
+        return Ok(HealthProbe::Degraded {
+            code: parsed.diagnostic_code,
+            detail: parsed.detail,
+        });
+    }
+
+    Ok(HealthProbe::Ok)
 }
 
 /// `HTTP/1.1 200 OK` -> `200`.
@@ -601,5 +682,44 @@ mod tests {
         assert_eq!(parse_status_code(b""), None);
         assert_eq!(parse_status_code(b"hello"), None);
         assert_eq!(parse_status_code(b"\xff\xfe not utf8"), None);
+    }
+
+    #[test]
+    fn parses_a_healthy_health_body() {
+        let response = concat!(
+            "HTTP/1.1 200 OK\r\n",
+            "Content-Type: application/json\r\n",
+            "\r\n",
+            r#"{"status":"ok","boot_id":"abc"}"#
+        );
+        assert_eq!(
+            parse_health_probe(response.as_bytes()).unwrap(),
+            HealthProbe::Ok
+        );
+    }
+
+    #[test]
+    fn parses_a_degraded_health_body() {
+        let response = concat!(
+            "HTTP/1.1 200 OK\r\n",
+            "\r\n",
+            r#"{"status":"degraded","diagnostic_code":"workspace_locked","detail":"locked"}"#
+        );
+        assert_eq!(
+            parse_health_probe(response.as_bytes()).unwrap(),
+            HealthProbe::Degraded {
+                code: Some("workspace_locked".to_owned()),
+                detail: Some("locked".to_owned()),
+            }
+        );
+    }
+
+    #[test]
+    fn non_200_responses_are_http_status_failures() {
+        let response = b"HTTP/1.1 503 Service Unavailable\r\n\r\n";
+        assert_eq!(
+            parse_health_probe(response).unwrap(),
+            HealthProbe::HttpStatus(503)
+        );
     }
 }

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use tauri::{AppHandle, State};
 
-use crate::boot::{BackendInfo, BootMachine, BootState};
+use crate::boot::{BackendInfo, BootMachine, BootState, SpawnFlags};
 use crate::logging::CLIENT_TARGET;
 use crate::workspace::WorkspaceValidation;
 use crate::{paths, pointer, window, workspace};
@@ -66,6 +66,29 @@ pub fn get_backend_info(machine: State<'_, Arc<BootMachine>>) -> Option<BackendI
 #[tauri::command]
 pub fn retry_boot(machine: State<'_, Arc<BootMachine>>) {
     tracing::info!("retry requested");
+    machine.set_spawn_flags(SpawnFlags::default());
+    machine.start();
+}
+
+/// Claim a workspace lock held by another instance (Q83).
+#[tauri::command]
+pub fn take_over_workspace(machine: State<'_, Arc<BootMachine>>) {
+    tracing::info!("take over requested");
+    machine.set_spawn_flags(SpawnFlags {
+        take_over: true,
+        ..SpawnFlags::default()
+    });
+    machine.start();
+}
+
+/// Retry migration without a pre-migration backup (Q85).
+#[tauri::command]
+pub fn proceed_without_backup(machine: State<'_, Arc<BootMachine>>) {
+    tracing::info!("proceed without backup requested");
+    machine.set_spawn_flags(SpawnFlags {
+        allow_without_backup: true,
+        ..SpawnFlags::default()
+    });
     machine.start();
 }
 

@@ -131,6 +131,11 @@ export interface components {
             backup_path: string | null;
             /** Detail */
             detail: string | null;
+            /**
+             * Diagnostic Code
+             * @description Structured degraded reason when `status` is `degraded`.
+             */
+            diagnostic_code?: ("workspace_locked" | "migration_failed" | "database_newer_than_app") | null;
             /** Started At */
             started_at: string;
         };

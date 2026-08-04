@@ -81,6 +81,8 @@ pub fn run() {
             commands::get_boot_state,
             commands::get_backend_info,
             commands::retry_boot,
+            commands::take_over_workspace,
+            commands::proceed_without_backup,
             commands::validate_workspace,
             commands::set_workspace,
             commands::forget_workspace,

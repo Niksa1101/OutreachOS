@@ -102,6 +102,45 @@ impl Diagnostic {
     }
 }
 
+/// Map a degraded `/health` payload onto a boot diagnostic.
+pub fn diagnose_degraded_health(code: Option<&str>, detail: Option<&str>) -> Diagnostic {
+    let detail_text = detail.filter(|value| !value.trim().is_empty());
+
+    match code {
+        Some("workspace_locked") => Diagnostic::new(
+            DiagnosticCode::WorkspaceLocked,
+            "The workspace is in use by another copy of OutreachOS.",
+        )
+        .with_detail(
+            detail_text
+                .unwrap_or("Another copy of OutreachOS appears to have this workspace open."),
+        ),
+
+        Some("migration_failed") => Diagnostic::new(
+            DiagnosticCode::MigrationFailed,
+            "The database could not be updated.",
+        )
+        .with_detail(detail_text.unwrap_or(
+            "OutreachOS could not apply a required database change. \
+                 Your data has not been modified.",
+        )),
+
+        Some("database_newer_than_app") => Diagnostic::new(
+            DiagnosticCode::DatabaseNewerThanApp,
+            "This workspace was made by a newer version of OutreachOS.",
+        )
+        .with_detail(detail_text.unwrap_or(
+            "The database in this workspace uses a newer format than this copy understands.",
+        )),
+
+        _ => Diagnostic::new(
+            DiagnosticCode::Unknown,
+            "The backend started in a degraded state.",
+        )
+        .with_detail(detail_text.unwrap_or("No further detail was provided.")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

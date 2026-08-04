@@ -20,9 +20,15 @@ from typing import Literal
 from outreachos_backend._version import __version__
 from outreachos_backend.core.timeutil import utcnow_iso
 
-__all__ = ["BootReport", "BootStatus", "Runtime"]
+__all__ = ["BootReport", "BootStatus", "DegradedDiagnosticCode", "Runtime"]
 
 BootStatus = Literal["ok", "degraded"]
+
+DegradedDiagnosticCode = Literal[
+    "workspace_locked",
+    "migration_failed",
+    "database_newer_than_app",
+]
 
 
 @dataclass
@@ -65,6 +71,11 @@ class BootReport:
     detail: str | None = None
     """Human-readable cause when ``status`` is ``degraded``. Surfaced verbatim
     on the diagnostics screen, so it is written for a user, not a grep."""
+
+    diagnostic_code: DegradedDiagnosticCode | None = None
+    """Structured reason when ``status`` is ``degraded``. Matches the frontend
+    ``DiagnosticCode`` union so Rust can map boot failures without parsing
+    ``detail``."""
 
 
 @dataclass

@@ -87,9 +87,12 @@ async def test_health_still_answers_while_degraded(app_with_database: FastAPI) -
     # Q113/Q104: `/health` never opens a session, which is precisely what lets
     # the diagnostics screen work when every DB route is refusing.
     app_with_database.state.runtime.report.status = "degraded"
+    app_with_database.state.runtime.report.diagnostic_code = "migration_failed"
 
     async with await client_for(app_with_database) as client:
         response = await client.get("/health")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "degraded"
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["diagnostic_code"] == "migration_failed"

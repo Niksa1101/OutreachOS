@@ -57,6 +57,8 @@ class LaunchConfig:
 
     take_over: bool
     """Q83's "Take over". Only ever set from the diagnostics screen's button."""
+    allow_without_backup: bool
+    """Proceed with migration when the pre-migration backup cannot be written."""
     ffmpeg_dir: Path | None
     """Q98: the *directory*, not the executable. P1 needs ``ffprobe.exe`` too,
     and one argument beats two that can disagree. Unused until P1."""
@@ -96,6 +98,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "decision rather than a heuristic.",
     )
     parser.add_argument(
+        "--allow-without-backup",
+        action="store_true",
+        help="Run migrations even when the pre-migration backup fails. Set only "
+        "when the user has pressed Proceed without backup on the diagnostics screen.",
+    )
+    parser.add_argument(
         "--ffmpeg-dir",
         type=Path,
         default=None,
@@ -126,5 +134,6 @@ def parse_launch_config(argv: list[str] | None = None) -> LaunchConfig:
         port=env.port,
         app_version=args.app_version,
         take_over=bool(args.take_over),
+        allow_without_backup=bool(args.allow_without_backup),
         ffmpeg_dir=args.ffmpeg_dir,
     )

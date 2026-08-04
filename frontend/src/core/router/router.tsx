@@ -93,8 +93,7 @@ const homeRoute = createRoute({
 
 /**
  * Q90: read-only in P0. Inside the shell, so it can assume a working database
- * — Q104 routes a degraded backend to `/diagnostics` before this ever mounts,
- * which is why it does not handle 503 itself.
+ * — Rust fails boot when `/health` is degraded, before this ever mounts.
  */
 const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,

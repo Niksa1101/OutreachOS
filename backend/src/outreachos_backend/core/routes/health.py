@@ -12,7 +12,7 @@ restart?" answerable from one field rather than inferred from a 401.
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from outreachos_backend.core.boot import BootStatus
+from outreachos_backend.core.boot import BootStatus, DegradedDiagnosticCode
 
 router = APIRouter(tags=["system"])
 router.redirect_slashes = False
@@ -38,6 +38,10 @@ class HealthResponse(BaseModel):
     migration_current: str | None
     backup_path: str | None
     detail: str | None
+    diagnostic_code: DegradedDiagnosticCode | None = Field(
+        default=None,
+        description="Structured degraded reason when `status` is `degraded`.",
+    )
     started_at: str
 
 
@@ -56,5 +60,6 @@ def get_health(request: Request) -> HealthResponse:
         migration_current=report.migration_current,
         backup_path=report.backup_path,
         detail=report.detail,
+        diagnostic_code=report.diagnostic_code,
         started_at=report.started_at,
     )

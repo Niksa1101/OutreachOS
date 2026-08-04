@@ -236,3 +236,7 @@ def apply_outcome(report: BootReport, outcome: MigrationOutcome) -> None:
         # not understand.
         report.status = "degraded"
         report.detail = outcome.detail
+        if outcome.newer_than_app:
+            report.diagnostic_code = "database_newer_than_app"
+        else:
+            report.diagnostic_code = "migration_failed"

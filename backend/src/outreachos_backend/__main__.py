@@ -141,7 +141,9 @@ def _watch_stdin_for_eof(on_eof: threading.Event) -> None:
         on_eof.set()
 
 
-def _open_database(layout: WorkspaceLayout, report: BootReport) -> Database:
+def _open_database(
+    layout: WorkspaceLayout, report: BootReport, *, allow_without_backup: bool
+) -> Database:
     """Open the database and bring it to head.
 
     DB.md §7: migrations run before the API accepts requests. A failure here
@@ -158,7 +160,11 @@ def _open_database(layout: WorkspaceLayout, report: BootReport) -> Database:
         log.error("skipping migrations: %s", report.detail)
         return database
 
-    outcome = migrate.run_migrations(database.engine, layout.database)
+    outcome = migrate.run_migrations(
+        database.engine,
+        layout.database,
+        allow_without_backup=allow_without_backup,
+    )
     migrate.apply_outcome(report, outcome)
 
     if outcome.newer_than_app:
@@ -188,7 +194,9 @@ def _serve(
     bus = EventBus(boot_id=handshake.boot_id)
     app.state.event_bus = bus
     app.state.runtime = Runtime(report=report, token=handshake.token, dev=config.dev)
-    app.state.database = _open_database(layout, report)
+    app.state.database = _open_database(
+        layout, report, allow_without_backup=config.allow_without_backup
+    )
 
     sock = _bind(config.port)
     port = int(sock.getsockname()[1])
@@ -286,6 +294,7 @@ def main() -> int:
     if not lock_state.acquired:
         holder = lock_state.holder
         report.status = "degraded"
+        report.diagnostic_code = "workspace_locked"
         report.detail = (
             f"This workspace is open in another copy of OutreachOS "
             f"(process {holder.pid} on {holder.hostname}, since {holder.started_at})."

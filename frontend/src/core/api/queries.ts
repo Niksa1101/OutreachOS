@@ -13,17 +13,11 @@
 import { queryOptions } from '@tanstack/react-query';
 
 import { apiFetch } from '@/core/api/client';
-import type { HealthResponse, SettingsResponse } from '@/core/api/types';
+import type { SettingsResponse } from '@/core/api/types';
 
 export const queryKeys = {
-  health: ['health'] as const,
   settings: ['settings'] as const,
 };
-
-export const healthQuery = queryOptions({
-  queryKey: queryKeys.health,
-  queryFn: () => apiFetch<HealthResponse>('/health'),
-});
 
 export const settingsQuery = queryOptions({
   queryKey: queryKeys.settings,

@@ -17,6 +17,7 @@
 //! longer exists is a subtle enough bug to name here rather than discover.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -95,11 +96,38 @@ pub struct BackendInfo {
     pub boot_id: String,
 }
 
+/// One-shot flags consumed by the next sidecar spawn attempt.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SpawnFlags {
+    pub take_over: bool,
+    pub allow_without_backup: bool,
+}
+
 pub struct BootMachine {
     app: AppHandle,
     state: Mutex<BootState>,
     /// `Some` only between a successful handshake and the process exiting.
     session: Mutex<Option<Session>>,
+    /// Prevents overlapping `run()` threads from spawning duplicate sidecars.
+    boot_in_progress: Mutex<bool>,
+    /// Bumped at the start of every boot attempt so exit watchers from a
+    /// superseded spawn cannot mark the current session as failed.
+    next_generation: AtomicU64,
+    /// Consumed when building the next `SpawnRequest`.
+    pending_spawn_flags: Mutex<SpawnFlags>,
+}
+
+/// Clears [`BootMachine::boot_in_progress`] when the boot thread finishes.
+struct BootSlotGuard<'a> {
+    machine: &'a BootMachine,
+}
+
+impl Drop for BootSlotGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut in_progress) = self.machine.boot_in_progress.lock() {
+            *in_progress = false;
+        }
+    }
 }
 
 struct Session {
@@ -118,7 +146,24 @@ impl BootMachine {
             app,
             state: Mutex::new(BootState::initial()),
             session: Mutex::new(None),
+            boot_in_progress: Mutex::new(false),
+            next_generation: AtomicU64::new(0),
+            pending_spawn_flags: Mutex::new(SpawnFlags::default()),
         }
+    }
+
+    /// Replace the flags used by the next spawn. Cleared after each attempt.
+    pub fn set_spawn_flags(&self, flags: SpawnFlags) {
+        if let Ok(mut pending) = self.pending_spawn_flags.lock() {
+            *pending = flags;
+        }
+    }
+
+    fn take_spawn_flags(&self) -> SpawnFlags {
+        self.pending_spawn_flags
+            .lock()
+            .map(|mut pending| std::mem::take(&mut *pending))
+            .unwrap_or_default()
     }
 
     pub fn snapshot(&self) -> BootState {
@@ -161,6 +206,18 @@ impl BootMachine {
     /// `retry_boot` command, and neither may stall the event loop while a
     /// 30-second handshake budget plays out.
     pub fn start(self: &Arc<Self>) {
+        {
+            let mut in_progress = self
+                .boot_in_progress
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if *in_progress {
+                tracing::debug!("boot already in progress; ignoring duplicate start");
+                return;
+            }
+            *in_progress = true;
+        }
+
         let machine = Arc::clone(self);
         std::thread::Builder::new()
             .name("boot".into())
@@ -169,13 +226,20 @@ impl BootMachine {
     }
 
     fn run(self: Arc<Self>) {
+        let _slot = BootSlotGuard { machine: &self };
+
         // Q78: a new attempt is a new identity in every respect. Reusing the
         // previous boot_id would let SSE clients replay events from a process
         // that no longer exists (Q65).
         let boot_id = Uuid::new_v4().to_string();
         let token = generate_token();
+        let spawn_flags = self.take_spawn_flags();
 
-        let generation = {
+        // Every attempt gets a unique generation, even when no previous session
+        // existed yet — overlapping boot threads must not share generation 0.
+        let generation = self.next_generation.fetch_add(1, Ordering::SeqCst);
+
+        {
             let mut session = self
                 .session
                 .lock()
@@ -185,11 +249,8 @@ impl BootMachine {
             if let Some(previous) = session.take() {
                 tracing::info!("stopping the previous sidecar before retrying");
                 previous.sidecar.shutdown();
-                previous.generation.wrapping_add(1)
-            } else {
-                0
             }
-        };
+        }
 
         // Q13: no pointer, no sidecar. The picker validates through
         // `validate_workspace`, which needs no backend, and `set_workspace`
@@ -230,6 +291,8 @@ impl BootMachine {
             workspace: &workspace,
             dev: cfg!(debug_assertions),
             resource_dir: resource_dir.as_deref(),
+            take_over: spawn_flags.take_over,
+            allow_without_backup: spawn_flags.allow_without_backup,
         });
 
         match result {
@@ -477,5 +540,22 @@ mod tests {
         // into the broadcast event would be invisible without this.
         let json = serde_json::to_string(&BootState::initial()).unwrap();
         assert!(!json.contains("token"), "{json}");
+    }
+
+    #[test]
+    fn generation_increments_on_every_attempt() {
+        let counter = AtomicU64::new(0);
+        let first = counter.fetch_add(1, Ordering::SeqCst);
+        let second = counter.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(first, 0);
+        assert_eq!(second, 1);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn spawn_flags_default_to_false() {
+        let flags = SpawnFlags::default();
+        assert!(!flags.take_over);
+        assert!(!flags.allow_without_backup);
     }
 }

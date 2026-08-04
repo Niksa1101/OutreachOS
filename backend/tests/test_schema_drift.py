@@ -35,9 +35,7 @@ _IGNORED_DIFF_KINDS = {"add_constraint", "remove_constraint"}
 
 def _significant(diff: Any) -> bool:
     kind = diff[0] if isinstance(diff, tuple) else None
-    if isinstance(kind, str) and kind in _IGNORED_DIFF_KINDS:
-        return False
-    return True
+    return not (isinstance(kind, str) and kind in _IGNORED_DIFF_KINDS)
 
 
 def test_the_models_match_the_migration_head(tmp_workspace: WorkspaceLayout) -> None:

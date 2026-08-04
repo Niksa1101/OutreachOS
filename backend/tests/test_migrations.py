@@ -138,9 +138,7 @@ def test_the_migration_seeds_app_settings(database: Database) -> None:
     migrated(database)
 
     with database.engine.connect() as connection:
-        row = connection.execute(
-            text("SELECT id, quality_preset FROM app_settings")
-        ).one()
+        row = connection.execute(text("SELECT id, quality_preset FROM app_settings")).one()
 
     assert row.id == 1
     assert row.quality_preset == "standard"

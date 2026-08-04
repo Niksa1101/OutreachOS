@@ -54,6 +54,9 @@ class LaunchConfig:
     app_version: str | None
     """The Tauri shell's version. ``None`` when run standalone via
     ``pnpm dev:backend``, where there is no shell to report one — Q126."""
+
+    take_over: bool
+    """Q83's "Take over". Only ever set from the diagnostics screen's button."""
     ffmpeg_dir: Path | None
     """Q98: the *directory*, not the executable. P1 needs ``ffprobe.exe`` too,
     and one argument beats two that can disagree. Unused until P1."""
@@ -85,6 +88,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--app-version", default=None, help="The Tauri shell's version.")
     parser.add_argument(
+        "--take-over",
+        action="store_true",
+        help="Claim the workspace even if .oos-lock names a live-looking holder. "
+        "Set only when the user has pressed the button (Q83) — we cannot tell a "
+        "live instance on another machine from a crashed one, so this is a "
+        "decision rather than a heuristic.",
+    )
+    parser.add_argument(
         "--ffmpeg-dir",
         type=Path,
         default=None,
@@ -114,5 +125,6 @@ def parse_launch_config(argv: list[str] | None = None) -> LaunchConfig:
         dev=bool(args.dev),
         port=env.port,
         app_version=args.app_version,
+        take_over=bool(args.take_over),
         ffmpeg_dir=args.ffmpeg_dir,
     )

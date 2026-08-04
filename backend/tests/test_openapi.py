@@ -66,8 +66,17 @@ def test_the_events_stream_is_absent_from_the_schema(app: FastAPI) -> None:
 
 
 def test_the_documented_endpoints_are_the_ones_q88_names(app: FastAPI) -> None:
-    # `/settings` joins in checkpoint 5, when there is a database behind it.
-    assert set(schema(app)["paths"]) == {"/api/v1/health", "/api/v1/client-logs"}
+    # Q88: four endpoints in P0. `/events` is the fourth and is deliberately
+    # absent from the schema (Q114), so three appear here.
+    #
+    # This set is asserted exactly rather than with `>=`: an endpoint appearing
+    # in P0 that nobody decided on is the thing worth catching, and the
+    # generated TypeScript client is downstream of this list.
+    assert set(schema(app)["paths"]) == {
+        "/api/v1/health",
+        "/api/v1/client-logs",
+        "/api/v1/settings",
+    }
 
 
 def test_the_schema_is_cached_rather_than_rebuilt(app: FastAPI) -> None:

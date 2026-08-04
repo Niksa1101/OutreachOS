@@ -25,6 +25,7 @@ import {
 } from '@/core/router/guard';
 import { DiagnosticsScreen } from '@/core/router/screens/DiagnosticsScreen';
 import { HomeScreen } from '@/core/router/screens/HomeScreen';
+import { SettingsScreen } from '@/core/router/screens/SettingsScreen';
 import { SetupScreen } from '@/core/router/screens/SetupScreen';
 
 /**
@@ -87,10 +88,21 @@ const homeRoute = createRoute({
   component: HomeScreen,
 });
 
+/**
+ * Q90: read-only in P0. Inside the shell, so it can assume a working database
+ * — Q104 routes a degraded backend to `/diagnostics` before this ever mounts,
+ * which is why it does not handle 503 itself.
+ */
+const settingsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/settings',
+  component: SettingsScreen,
+});
+
 const routeTree = rootRoute.addChildren([
   setupRoute,
   diagnosticsRoute,
-  shellRoute.addChildren([homeRoute]),
+  shellRoute.addChildren([homeRoute, settingsRoute]),
 ]);
 
 export const router = createRouter({

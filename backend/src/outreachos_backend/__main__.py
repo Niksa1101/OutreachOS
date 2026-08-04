@@ -33,13 +33,14 @@ from pathlib import Path
 
 import uvicorn
 
-from outreachos_backend.core import control, devtoken
+from outreachos_backend.core import control, devtoken, lock, migrate
 from outreachos_backend.core.app import create_app
 from outreachos_backend.core.boot import BootReport, Runtime
 from outreachos_backend.core.config import LaunchConfig, parse_launch_config
+from outreachos_backend.core.db import Database
 from outreachos_backend.core.events import EventBus
 from outreachos_backend.core.logging import configure_logging
-from outreachos_backend.core.workspace import prepare_workspace
+from outreachos_backend.core.workspace import WorkspaceLayout, prepare_workspace
 
 log = logging.getLogger(__name__)
 
@@ -140,12 +141,54 @@ def _watch_stdin_for_eof(on_eof: threading.Event) -> None:
         on_eof.set()
 
 
-def _serve(config: LaunchConfig, handshake: Handshake, report: BootReport) -> int:
+def _open_database(layout: WorkspaceLayout, report: BootReport) -> Database:
+    """Open the database and bring it to head.
+
+    DB.md §7: migrations run before the API accepts requests. A failure here
+    does **not** raise — Q17 keeps the process alive serving `/health` with
+    `status: degraded` so the diagnostics screen has something to read, and
+    `get_session` refuses to hand out sessions in that state (Q84).
+    """
+    database = Database(layout.database)
+
+    if report.status != "ok":
+        # Already degraded — the lock is held by someone else. Migrating now
+        # would write to a database another instance believes it owns, which is
+        # the corruption path the lock exists to prevent.
+        log.error("skipping migrations: %s", report.detail)
+        return database
+
+    outcome = migrate.run_migrations(database.engine, layout.database)
+    migrate.apply_outcome(report, outcome)
+
+    if outcome.newer_than_app:
+        # A distinct diagnostics code on the Rust side, so the screen can drop
+        # Retry — retrying does the same thing and fails the same way.
+        log.error("the database is newer than this build; refusing to open it")
+        return database
+
+    if not outcome.ok:
+        log.error("migrations did not complete: %s", outcome.detail)
+        return database
+
+    # Q60: the migration seeds the singleton; this covers a database somebody
+    # deleted the row from.
+    migrate.heal_app_settings(database.engine)
+    return database
+
+
+def _serve(
+    config: LaunchConfig,
+    handshake: Handshake,
+    report: BootReport,
+    layout: WorkspaceLayout,
+) -> int:
     app = create_app(dev=config.dev)
 
     bus = EventBus(boot_id=handshake.boot_id)
     app.state.event_bus = bus
     app.state.runtime = Runtime(report=report, token=handshake.token, dev=config.dev)
+    app.state.database = _open_database(layout, report)
 
     sock = _bind(config.port)
     port = int(sock.getsockname()[1])
@@ -234,11 +277,30 @@ def main() -> int:
         app_version=config.app_version,
     )
 
+    # Q83. Note what does **not** happen here: the lock is not swept first.
+    # Sweeping before acquisition would delete a lock that may belong to a live
+    # instance on another machine — the network-share case the lock exists for
+    # — and silently bypass the foreign-host warning. The staleness check *is*
+    # the cleanup path.
+    lock_state = lock.acquire(layout.lock_file, handshake.boot_id, take_over=config.take_over)
+    if not lock_state.acquired:
+        holder = lock_state.holder
+        report.status = "degraded"
+        report.detail = (
+            f"This workspace is open in another copy of OutreachOS "
+            f"(process {holder.pid} on {holder.hostname}, since {holder.started_at})."
+            if holder
+            else "This workspace is locked by another copy of OutreachOS."
+        )
+        log.error("%s", report.detail)
+
     try:
-        return _serve(config, handshake, report)
+        return _serve(config, handshake, report, layout)
     finally:
-        # Q118's tail. `.oos-lock` removal joins here in checkpoint 5, between
-        # the server stopping and the handlers flushing.
+        # Q118's tail, in order: the server has stopped by the time we get
+        # here, so the lock goes next, then the handlers flush.
+        if lock_state.acquired:
+            lock.release(layout.lock_file, handshake.boot_id)
         devtoken.sweep_dev_token()
         logging.shutdown()
 

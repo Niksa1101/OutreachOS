@@ -36,6 +36,21 @@ jobs:
       - name: Version divergence check
         run: node scripts/sync-version.mjs --check
 
+      # Q89: the spec is produced in-process by `app.openapi()`, so this needs
+      # Python but not a running sidecar. It lives on this job rather than the
+      # Windows one because generating text is genuinely platform-agnostic and
+      # Q122 keeps Node off the Windows runner.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install backend dependencies
+        run: uv sync --directory backend --frozen
+
+      - name: Generated API types are current
+        run: node scripts/gen-api-types.mjs --check
+
       - run: pnpm run format:check
       - run: pnpm run lint:js
       - run: pnpm run typecheck:js

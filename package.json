@@ -25,10 +25,13 @@
     "format": "prettier --write . && uv run --directory backend ruff format .",
     "format:check": "prettier --check .",
     "sync-version": "node scripts/sync-version.mjs",
-    "sync-version:check": "node scripts/sync-version.mjs --check"
+    "sync-version:check": "node scripts/sync-version.mjs --check",
+    "gen-api-types": "node scripts/gen-api-types.mjs",
+    "gen-api-types:check": "node scripts/gen-api-types.mjs --check"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
+    "openapi-typescript": "^7.5.0",
     "prettier": "^3.4.2"
   }
 }

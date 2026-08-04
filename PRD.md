@@ -1,6 +1,6 @@
 # OutreachOS — Product Requirements & Implementation Plan
 
-> **Status:** Specification locked. No implementation started.
+> **Status:** Specification locked. **P0 complete** (2026-08-04). **P1 in progress next.**
 > **Version:** 1.0 (Video Composer)
 > **Target platform:** Windows 11 (code written cross-platform-clean)
 
@@ -70,9 +70,9 @@ npx shadcn@latest add button dialog table
 4. Custom components belong in `frontend/src/core/ui/` and must be **composed from** shadcn primitives, never replace them.
 5. Component styling uses **design tokens** (§4), never hardcoded colors or spacing values.
 
-### ⚠ P0 verification item
+### P0 resolution (2026-08-04)
 
-The command specifies `--template next`, but this project is **Vite + Tauri, not Next.js**. During P0, verify whether the preset `b51GFh7y6` applies cleanly to a Vite target. If the template flag conflicts, keep the **preset ID** (it carries the design configuration) and adjust only the template target. Record the resolution in `docs/adr/`.
+The command specifies `--template next`, but this project is **Vite + Tauri, not Next.js**. Resolved in P0: **`--template next` dropped**, preset ID kept, palette overridden per Q123. See [`docs/decisions/0001-shadcn-preset-vite.md`](docs/decisions/0001-shadcn-preset-vite.md).
 
 ---
 
@@ -238,9 +238,11 @@ Blocking issues disable *Generate Videos* with a stated reason. Warnings render 
 
 ### P0 — Project Skeleton
 
+**Status:** ✅ **Complete** — merged to `main`, 2026-08-04.
+
 **Goal:** A running shell that proves every layer can talk to every other layer. No features.
 
-**Deliverables**
+**Deliverables** *(all landed)*
 - Git repository initialized on `main`, Conventional Commits with module scopes (`feat(video-composer):`, `feat(core):`), full `.gitignore`
 - Tauri 2 application shell, single-instance enforced
 - React 19 + TypeScript + Vite frontend
@@ -256,14 +258,23 @@ Blocking issues disable *Generate Videos* with a stated reason. Warnings render 
 - ESLint rule forbidding cross-module imports
 - GitHub Actions: lint, typecheck, test
 
-**Exit criteria**
+**Exit criteria** *(verified)*
 - App launches, picks a workspace, creates the database, and displays a heartbeat received over SSE from the sidecar
 - Killing the sidecar surfaces the diagnostics screen
 - CI green
 
+**Verification record**
+- **Automated:** 190 tests green locally (64 `cargo`, 100 `pytest`, 26 `vitest`); GitHub Actions CI on push
+- **Manual (2026-08-04):** workspace picker · SSE **Connected** · kill sidecar → `sidecar_exited` + Retry · kill Tauri → no orphan Python · second launch focuses first instance
+- **Checklist:** [`docs/p0-verification.md`](docs/p0-verification.md) — high-value items done; remaining items (monitor unplug, 10‑min idle, non-ASCII path, packaged build) deferred to ongoing regression or P6
+- **Implementation:** six checkpoint branches (`p0/01-tooling` … `p0/06-ui`), squash-merged to `main`
+- **Decisions:** [`docs/decisions/`](docs/decisions/) — ADRs 0001–0006; full P0 interview in `p0-questionnaire.md`
+
 ---
 
 ### P1 — Headless Render Engine
+
+**Status:** 🔜 **Next** — not started.
 
 **Goal:** Correct video output, driven entirely from a CLI. **Zero UI.**
 
@@ -425,7 +436,7 @@ These are **implementation risks with named fallbacks**, not open decisions. All
 | 3 | NVENC may not beat CPU for 25s clips | P1 | Auto-detect stays; benchmark decides the default |
 | 4 | `tpad` + `overlay` + fade ordering in one graph | P1 | Reorder graph nodes; worst case, pad before overlay |
 | 5 | PyInstaller freezing FastAPI/uvicorn/SQLAlchemy on Windows | P6 | Hidden-imports tuning; embedded runtime as fallback |
-| 6 | shadcn preset targets `next`, project is Vite | P0 | Keep preset ID, adjust template target; record in ADR |
+| 6 | shadcn preset targets `next`, project is Vite | ~~P0~~ ✅ | Resolved — ADR-0001: preset kept, `--template next` dropped, palette overridden |
 
 ---
 

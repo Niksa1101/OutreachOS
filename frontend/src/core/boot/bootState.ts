@@ -11,8 +11,20 @@
  * longer exists is worse than an empty one.
  */
 
-/** Mirrors `BootPhase` in `src-tauri/src/boot.rs`. */
-export type BootPhase = 'starting' | 'starting_backend' | 'ready' | 'failed';
+/**
+ * Mirrors `BootPhase` in `src-tauri/src/boot.rs`.
+ *
+ * `phases_serialise_to_the_snake_case_the_reducer_matches_on` over there
+ * asserts the wire values, so a rename on the Rust side fails a test rather
+ * than silently dropping this union into its `default` branch.
+ */
+export type BootPhase =
+  | 'starting'
+  /** Q13: no workspace pointer, and therefore **no sidecar**. */
+  | 'awaiting_workspace'
+  | 'starting_backend'
+  | 'ready'
+  | 'failed';
 
 /** Mirrors `DiagnosticCode` in `src-tauri/src/diagnostics.rs`. */
 export type DiagnosticCode =

@@ -13,7 +13,10 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
+    "@tanstack/react-router": "^1.95.0",
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
     "eventsource": "^3.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

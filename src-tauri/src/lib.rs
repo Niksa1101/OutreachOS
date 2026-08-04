@@ -10,8 +10,10 @@ mod commands;
 mod diagnostics;
 mod logging;
 mod paths;
+mod pointer;
 mod sidecar;
 mod window;
+mod workspace;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -79,6 +81,11 @@ pub fn run() {
             commands::get_boot_state,
             commands::get_backend_info,
             commands::retry_boot,
+            commands::validate_workspace,
+            commands::set_workspace,
+            commands::forget_workspace,
+            commands::read_log_tail,
+            commands::open_logs_folder,
             commands::log_client_error
         ])
         .setup(move |app| {

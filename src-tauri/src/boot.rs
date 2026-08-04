@@ -16,7 +16,7 @@
 //! successful retry — returning to a cache populated by a process that no
 //! longer exists is a subtle enough bug to name here rather than discover.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -25,7 +25,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
 use crate::diagnostics::{Diagnostic, DiagnosticCode};
+use crate::pointer;
 use crate::sidecar::{self, Sidecar, SpawnRequest};
+use crate::workspace::{self, WorkspaceRejection};
 
 /// The event name the frontend subscribes to. Full snapshots only.
 pub const BOOT_STATE_EVENT: &str = "boot://state";
@@ -42,6 +44,12 @@ const EXIT_POLL_INTERVAL: Duration = Duration::from_millis(500);
 pub enum BootPhase {
     /// Before anything has been attempted.
     Starting,
+    /// No workspace pointer. Q13: **the sidecar is not spawned in this state.**
+    ///
+    /// That is the whole reason the ordering problem dissolves rather than
+    /// needing a `/workspace` mutation endpoint and a backend with two
+    /// lifecycle states — an invariant every later phase gets to assume.
+    AwaitingWorkspace,
     /// The sidecar is spawning or completing its handshake.
     StartingBackend,
     /// Handshake complete. The shell may mount.
@@ -183,13 +191,33 @@ impl BootMachine {
             }
         };
 
-        let workspace = provisional_workspace();
+        // Q13: no pointer, no sidecar. The picker validates through
+        // `validate_workspace`, which needs no backend, and `set_workspace`
+        // re-enters this function once there is somewhere to point at.
+        let Some(stored) = pointer::read(&self.app) else {
+            tracing::info!("no workspace pointer; waiting for the picker");
+            self.set(|state| {
+                state.phase = BootPhase::AwaitingWorkspace;
+                state.boot_id = boot_id.clone();
+                state.status = "Choose a workspace to continue.".to_owned();
+                state.workspace_path = None;
+                state.port = None;
+                state.diagnostic = None;
+            });
+            return;
+        };
+
+        let validation = workspace::validate(Path::new(&stored));
+        let Some(workspace_path) = self.accept_workspace(&stored, validation) else {
+            return;
+        };
+        let workspace = PathBuf::from(&workspace_path);
 
         self.set(|state| {
             state.phase = BootPhase::StartingBackend;
             state.boot_id = boot_id.clone();
             state.status = "Starting the backend…".to_owned();
-            state.workspace_path = Some(workspace.display().to_string());
+            state.workspace_path = Some(workspace_path);
             state.port = None;
             state.diagnostic = None;
         });
@@ -245,6 +273,43 @@ impl BootMachine {
                 });
             }
         }
+    }
+
+    /// Turn a validation result into either a usable path or a failed state.
+    ///
+    /// Returns `None` when the boot cannot continue, having already published
+    /// the diagnostic — so the caller's `let ... else { return }` reads as the
+    /// control flow it is.
+    fn accept_workspace(
+        &self,
+        stored: &str,
+        validation: workspace::WorkspaceValidation,
+    ) -> Option<String> {
+        if let Some(rejection) = validation.rejection {
+            tracing::error!(
+                ?rejection,
+                path = stored,
+                "the stored workspace is unusable"
+            );
+            let diagnostic = diagnose_rejection(rejection, &validation.path);
+            self.set(|state| {
+                state.phase = BootPhase::Failed;
+                state.status = diagnostic.message.clone();
+                state.workspace_path = Some(validation.path.clone());
+                state.port = None;
+                state.diagnostic = Some(diagnostic);
+            });
+            return None;
+        }
+
+        if !validation.warnings.is_empty() {
+            // Q14: warnings are dismissible and were already shown at pick
+            // time. Logging them at boot means a support conversation about a
+            // half-written render has the sync-folder context in the file.
+            tracing::warn!(?validation.warnings, "workspace warnings");
+        }
+
+        Some(validation.path)
     }
 
     /// Q78: the authoritative death notice.
@@ -324,19 +389,37 @@ fn generate_token() -> String {
         })
 }
 
-/// **Checkpoint 3 scaffolding.** Replaced in checkpoint 4 by the validated
-/// pointer read from `workspace.json`.
+/// Map a pick-time rejection onto a diagnostics code.
 ///
-/// The sidecar requires `--workspace` and Q13's invariant is that it is never
-/// spawned without one — but the picker that produces a real path does not
-/// exist yet. Q70 calls this out as honest incrementalism rather than an
-/// oversight. A temp directory is used rather than `%LOCALAPPDATA%\OutreachOS`
-/// precisely because Q117 *refuses* that location for a real workspace, and
-/// scaffolding should not model something the next checkpoint rejects.
-fn provisional_workspace() -> PathBuf {
-    let path = std::env::temp_dir().join("outreachos-provisional-workspace");
-    let _ = std::fs::create_dir_all(&path);
-    path
+/// A stored pointer was validated when it was stored, so most of these are
+/// unreachable in practice — the ones that are not are the interesting ones,
+/// because they describe a workspace that changed underneath the app between
+/// runs. Q41's `unknown` carries the rest rather than forcing a bad fit; an
+/// unmapped failure must not render a blank screen.
+fn diagnose_rejection(rejection: WorkspaceRejection, path: &str) -> Diagnostic {
+    use WorkspaceRejection as R;
+
+    match rejection {
+        R::NotFound | R::NotADirectory => Diagnostic::new(
+            DiagnosticCode::WorkspaceMissing,
+            "The workspace folder is no longer where it was.",
+        )
+        .with_detail(format!(
+            "{path}\n\nIt may have been renamed, moved, or be on a drive that is not connected."
+        )),
+
+        R::NotWritable => Diagnostic::new(
+            DiagnosticCode::WorkspaceUnwritable,
+            "The workspace folder cannot be written to.",
+        )
+        .with_detail(path),
+
+        other => Diagnostic::new(
+            DiagnosticCode::Unknown,
+            "The workspace folder is no longer usable.",
+        )
+        .with_detail(format!("{path}\n\nReason: {other:?}")),
+    }
 }
 
 #[cfg(test)]
@@ -367,14 +450,24 @@ mod tests {
 
     #[test]
     fn phases_serialise_to_the_snake_case_the_reducer_matches_on() {
-        assert_eq!(
-            serde_json::to_string(&BootPhase::StartingBackend).unwrap(),
-            "\"starting_backend\""
-        );
-        assert_eq!(
-            serde_json::to_string(&BootPhase::Ready).unwrap(),
-            "\"ready\""
-        );
+        // Exhaustive on purpose. This is the contract with the `BootPhase`
+        // union in `frontend/src/core/boot/bootState.ts`: adding a variant
+        // here without adding it there drops the new phase into the reducer's
+        // fallthrough, where it renders as whatever the previous state was —
+        // a hang with no error anywhere.
+        for (phase, expected) in [
+            (BootPhase::Starting, "starting"),
+            (BootPhase::AwaitingWorkspace, "awaiting_workspace"),
+            (BootPhase::StartingBackend, "starting_backend"),
+            (BootPhase::Ready, "ready"),
+            (BootPhase::Failed, "failed"),
+        ] {
+            assert_eq!(
+                serde_json::to_string(&phase).unwrap(),
+                format!("\"{expected}\""),
+                "{phase:?} does not match the frontend union"
+            );
+        }
     }
 
     #[test]

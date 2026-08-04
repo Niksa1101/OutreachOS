@@ -1,0 +1,179 @@
+/**
+ * Design tokens — the single source of every value in the application.
+ *
+ * Q26: CSS custom properties are the source; Tailwind v4's `@theme` maps onto
+ * them rather than duplicating them. Tech.md §3.3: **hardcoded colours and
+ * spacing values are a review failure.**
+ *
+ * Q125 / ADR-0001: this file holds the *values*. `shadcn-aliases.css` holds the
+ * mapping onto shadcn's hardcoded variable names, and `components.json` points
+ * at that file — so a future `npx shadcn@latest add` rewrites the alias layer
+ * and can never reach the palette.
+ *
+ * Q27 / Q123: dark-only in V1, light-ready in structure. The semantic names
+ * below carry no lightness in them (`--color-bg`, not `--color-zinc-950`), so a
+ * light theme is a second block in this file and nothing else changes.
+ */
+
+:root {
+  /* ---------------------------------------------------------------------
+   * Colour — zinc neutrals in oklch, dark-first.
+   *
+   * oklch rather than hex because the accent's hover and active states are
+   * derived by moving lightness, and that only stays perceptually even in a
+   * perceptual space. In sRGB the same nudge reads as a different amount of
+   * change depending on the hue.
+   * ------------------------------------------------------------------- */
+
+  --color-bg: oklch(0.141 0.005 285.823);
+  /* One step up. Sidebar, table stripes — anything that needs to separate
+     from the page without becoming a card. */
+  --color-bg-subtle: oklch(0.21 0.006 285.885);
+  /* Cards, popovers, dialogs. Reads as "in front of". */
+  --color-surface: oklch(0.245 0.006 286);
+  --color-surface-hover: oklch(0.29 0.006 286);
+
+  --color-border: oklch(0.31 0.008 286);
+  --color-border-strong: oklch(0.42 0.012 286);
+
+  --color-fg: oklch(0.985 0 0);
+  --color-fg-muted: oklch(0.705 0.015 286.067);
+  /* Placeholder text, disabled labels. Deliberately below the 4.5:1 line —
+     nothing load-bearing may use it. */
+  --color-fg-subtle: oklch(0.552 0.016 285.938);
+
+  /* Q27 / Q123: a desaturated blue that reads as tooling rather than as a
+     consumer product. */
+  --color-accent: oklch(0.58 0.15 255);
+  --color-accent-hover: oklch(0.64 0.15 255);
+  --color-accent-active: oklch(0.52 0.15 255);
+  --color-accent-fg: oklch(0.985 0 0);
+  /* For tinted backgrounds behind accent text — a selected nav row. */
+  --color-accent-subtle: oklch(0.58 0.15 255 / 0.14);
+
+  --color-danger: oklch(0.637 0.237 25.331);
+  --color-danger-hover: oklch(0.69 0.237 25.331);
+  --color-danger-fg: oklch(0.985 0 0);
+  --color-danger-subtle: oklch(0.637 0.237 25.331 / 0.14);
+
+  --color-warning: oklch(0.769 0.188 70.08);
+  --color-warning-fg: oklch(0.141 0.005 285.823);
+  --color-warning-subtle: oklch(0.769 0.188 70.08 / 0.14);
+
+  --color-success: oklch(0.696 0.17 162.48);
+  --color-success-subtle: oklch(0.696 0.17 162.48 / 0.14);
+
+  /* A11y baseline: a visible focus ring **as a token**, so no component can
+     quietly opt out of one by not thinking about it. */
+  --color-focus-ring: oklch(0.72 0.13 255);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* ---------------------------------------------------------------------
+   * Typography
+   *
+   * Q27: Inter Variable and JetBrains Mono, both OFL, both self-hosted via
+   * `@fontsource-variable/*` and subset to latin. **No CDN** — a Google Fonts
+   * `<link>` would fail silently in a packaged build, where there is no
+   * network at all, and the app would fall back to a system font without
+   * anything reporting a problem.
+   * ------------------------------------------------------------------- */
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  /* Ports, IDs, paths, log tails. Anything the user might need to compare
+     character by character. */
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-tight: -0.011em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---------------------------------------------------------------------
+   * Spacing — a 4px base scale.
+   * ------------------------------------------------------------------- */
+
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ---------------------------------------------------------------------
+   * Radius — 0.5rem base, sm and lg derived (Q27).
+   * ------------------------------------------------------------------- */
+
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-lg: calc(var(--radius) + 0.25rem);
+  --radius-full: 9999px;
+
+  /* ---------------------------------------------------------------------
+   * Elevation
+   *
+   * On a dark background a shadow reads as depth far more weakly than on a
+   * light one, so these lean on a hairline top border rather than on blur
+   * alone.
+   * ------------------------------------------------------------------- */
+
+  --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px -2px oklch(0 0 0 / 0.5);
+  --shadow-lg: 0 12px 32px -8px oklch(0 0 0 / 0.6);
+
+  /* ---------------------------------------------------------------------
+   * Motion
+   *
+   * **Tokens are the only motion values in the application.** That is what
+   * makes the reduced-motion block below complete rather than best-effort —
+   * nothing can bypass it, because nothing else names a duration.
+   *
+   * Motion in P0 is CSS transitions only. `motion` is not installed until
+   * something needs animating: an unused dependency is a lockfile entry, an
+   * audit surface, and a version that will be stale by the time P3 uses it.
+   * ------------------------------------------------------------------- */
+
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ---------------------------------------------------------------------
+   * Layout
+   * ------------------------------------------------------------------- */
+
+  --sidebar-width: 15rem;
+  --sidebar-width-icon: 3rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    /* Not exactly `0`: a zero-duration transition never fires `transitionend`,
+       and a component that waits for one would hang rather than degrade.
+       0.01ms is imperceptible and still completes. */
+    --motion-fast: 0.01ms;
+    --motion-base: 0.01ms;
+    --motion-slow: 0.01ms;
+  }
+}

@@ -1,0 +1,167 @@
+/**
+ * The shadcn alias layer.
+ *
+ * Q91: shadcn's components hardcode its own variable names — `--background`,
+ * `--foreground`, `--card`, `--primary`, `--muted`, `--border`, `--ring`. If
+ * our tokens do not feed those, **every `shadcn add` needs hand-editing
+ * forever.**
+ *
+ * The composition: our semantic tier in `tokens.css` is the source of truth,
+ * and shadcn's names are a thin alias over it. Both vocabularies exist; one set
+ * of values. `/dev/tokens` renders both tiers so a mismatch is visible rather
+ * than inferred, and `tokens.test.ts` asserts statically that every alias
+ * resolves.
+ *
+ * **`components.json` points at this file, not at `tokens.css`** (Q125). That
+ * is the whole reason they are separate: `shadcn add` rewrites the file it is
+ * given, so it must be given the one holding no values.
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+ * shadcn's vocabulary, mapped onto ours.
+ *
+ * Every value on the right is a `var()`. A literal colour appearing in this
+ * file is the bug this file exists to prevent.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-fg);
+
+  --card: var(--color-surface);
+  --card-foreground: var(--color-fg);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-fg);
+
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-accent-fg);
+
+  --secondary: var(--color-bg-subtle);
+  --secondary-foreground: var(--color-fg);
+
+  --muted: var(--color-bg-subtle);
+  --muted-foreground: var(--color-fg-muted);
+
+  /* shadcn's `accent` is a hover/highlight surface, not a brand colour — the
+     name collides with ours and means something else. Mapping it to our
+     brand accent would tint every hovered menu row blue. */
+  --accent: var(--color-surface-hover);
+  --accent-foreground: var(--color-fg);
+
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-danger-fg);
+
+  --border: var(--color-border);
+  --input: var(--color-border-strong);
+  --ring: var(--color-focus-ring);
+
+  --sidebar: var(--color-bg-subtle);
+  --sidebar-foreground: var(--color-fg);
+  --sidebar-primary: var(--color-accent);
+  --sidebar-primary-foreground: var(--color-accent-fg);
+  --sidebar-accent: var(--color-surface-hover);
+  --sidebar-accent-foreground: var(--color-fg);
+  --sidebar-border: var(--color-border);
+  --sidebar-ring: var(--color-focus-ring);
+
+  /* P0 ships no charts and Tech.md §7 has no chart library. These exist
+     because shadcn's `@theme` block references them and an unresolved `var()`
+     silently computes to nothing; they are the accent at four steps of
+     lightness so that whatever first uses them is at least coherent. */
+  --chart-1: oklch(0.58 0.15 255);
+  --chart-2: oklch(0.68 0.13 235);
+  --chart-3: oklch(0.72 0.12 195);
+  --chart-4: oklch(0.64 0.14 285);
+  --chart-5: oklch(0.5 0.14 265);
+}
+
+/* ---------------------------------------------------------------------------
+ * Tailwind's theme, mapped onto the same values.
+ *
+ * `@theme inline` rather than `@theme`: inline emits `var()` references
+ * instead of copying the resolved values, so a token overridden at runtime —
+ * which is how a light theme will work — actually takes effect. A plain
+ * `@theme` would bake the dark values into the utility classes at build time.
+ * ------------------------------------------------------------------------- */
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: calc(var(--radius) + 0.5rem);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  /* The focus ring, applied once. A11y baseline: visible focus as a token
+     rather than as a decision each component makes separately. */
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    /* Inter's default figures are proportional, which makes a column of ports
+       or durations jitter as the numbers change. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+}

@@ -23,10 +23,13 @@ import {
   isGatePath,
   resolveGate,
 } from '@/core/router/guard';
+import { DevTokensScreen } from '@/core/router/screens/DevTokensScreen';
 import { DiagnosticsScreen } from '@/core/router/screens/DiagnosticsScreen';
 import { HomeScreen } from '@/core/router/screens/HomeScreen';
 import { SettingsScreen } from '@/core/router/screens/SettingsScreen';
 import { SetupScreen } from '@/core/router/screens/SetupScreen';
+import { CampaignsScreen } from '@/modules/video-composer/routes/CampaignsScreen';
+import { RenderQueueScreen } from '@/modules/video-composer/routes/RenderQueueScreen';
 
 /**
  * Where to return to once the app is healthy again (Q78).
@@ -99,10 +102,52 @@ const settingsRoute = createRoute({
   component: SettingsScreen,
 });
 
+/**
+ * Q19: a module's routes are registered here, one block per module. The
+ * registry in `core/registry/modules.ts` describes *navigation*; this
+ * describes the tree. Keeping them apart means a module can own a route with
+ * no nav entry — a campaign detail page — without inventing a flag for it.
+ */
+const campaignsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/video-composer/campaigns',
+  component: CampaignsScreen,
+});
+
+const renderQueueRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/video-composer/queue',
+  component: RenderQueueScreen,
+});
+
+/**
+ * Q91: `/dev/tokens` exists only in development.
+ *
+ * The guard is on *registration*, not on the component, so the screen and
+ * everything it imports are unreachable from the production route tree and
+ * drop out of the bundle. A component that returned `null` in production
+ * would still ship.
+ */
+const devRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => shellRoute,
+        path: '/dev/tokens',
+        component: DevTokensScreen,
+      }),
+    ]
+  : [];
+
 const routeTree = rootRoute.addChildren([
   setupRoute,
   diagnosticsRoute,
-  shellRoute.addChildren([homeRoute, settingsRoute]),
+  shellRoute.addChildren([
+    homeRoute,
+    settingsRoute,
+    campaignsRoute,
+    renderQueueRoute,
+    ...devRoutes,
+  ]),
 ]);
 
 export const router = createRouter({

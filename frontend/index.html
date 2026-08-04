@@ -1,5 +1,17 @@
 <!doctype html>
-<html lang="en">
+<!--
+  `class="dark"` is set here rather than toggled at runtime. Q27: dark-only in
+  V1, light-ready in structure — the tokens carry no lightness in their names,
+  so a light theme is a second block in tokens.css and this attribute becoming
+  dynamic. shadcn's components use a `dark:` variant defined as `&:is(.dark *)`,
+  which needs the class to be present for those styles to apply at all.
+
+  The background colour is repeated as an inline style because it has to be
+  correct before the stylesheet loads. Without it the webview paints white for
+  one frame, which is exactly the flash the hidden window in Q54 exists to
+  prevent — reintroducing it here would undo that.
+-->
+<html lang="en" class="dark" style="background-color: oklch(0.141 0.005 285.823)">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

@@ -1,6 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+// Relative, not aliased: the `@/` paths are scoped to `core/` and `modules/`
+// so the boundary lint has something precise to police, and the stylesheet
+// entry sits above both.
+import './index.css';
+
 import { BootErrorBoundary } from '@/core/boot/BootErrorBoundary';
 import { startBootSubscription } from '@/core/boot/bootStore';
 import { installClientErrorReporting } from '@/core/boot/clientErrors';

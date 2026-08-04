@@ -140,3 +140,37 @@ def test_release_leaves_somebody_elses_lock_alone(tmp_workspace: WorkspaceLayout
 
 def test_releasing_a_missing_lock_is_not_an_error(tmp_workspace: WorkspaceLayout) -> None:
     lock.release(tmp_workspace.lock_file, "boot-1")
+
+
+def test_concurrent_acquire_on_a_stale_lock_has_one_winner(
+    tmp_workspace: WorkspaceLayout,
+) -> None:
+    import threading
+
+    # A PID that cannot be alive, with no start time — unambiguously stale.
+    write_lock(
+        tmp_workspace,
+        pid=2_147_483_647,
+        hostname=socket.gethostname(),
+        process_started_at=1.0,
+    )
+
+    results: list[lock.LockState] = []
+    barrier = threading.Barrier(2)
+
+    def worker(boot_id: str) -> None:
+        barrier.wait()
+        results.append(lock.acquire(tmp_workspace.lock_file, boot_id))
+
+    threads = [
+        threading.Thread(target=worker, args=("boot-1",)),
+        threading.Thread(target=worker, args=("boot-2",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    acquired = [state for state in results if state.acquired]
+    assert len(acquired) == 1
+    assert len(results) == 2

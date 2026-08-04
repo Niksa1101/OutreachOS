@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import socket
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -126,12 +127,8 @@ def _is_alive(holder: LockHolder) -> bool:
     return abs(start - holder.process_started_at) < 1.0
 
 
-def read(lock_file: Path) -> LockHolder | None:
-    try:
-        payload = json.loads(lock_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        # A missing lock and an unreadable one lead to the same place: there is
-        # no holder we can identify, so the lock cannot be honoured.
+def _parse_holder(payload: object) -> LockHolder | None:
+    if not isinstance(payload, dict):
         return None
 
     try:
@@ -150,34 +147,112 @@ def read(lock_file: Path) -> LockHolder | None:
         return None
 
 
-def acquire(lock_file: Path, boot_id: str, *, take_over: bool = False) -> LockState:
-    """Take the workspace lock, or report who holds it.
+def read(lock_file: Path) -> LockHolder | None:
+    try:
+        payload = json.loads(lock_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        # A missing lock and an unreadable one lead to the same place: there is
+        # no holder we can identify, so the lock cannot be honoured.
+        return None
 
-    `take_over=True` is the user having pressed the button. It is the only way
-    past a live-looking lock, and it is deliberately a decision rather than a
-    heuristic — we cannot tell a live instance on another machine from a
-    crashed one.
-    """
-    existing = read(lock_file)
+    return _parse_holder(payload)
 
-    if existing is not None and not take_over:
-        foreign = existing.hostname != socket.gethostname()
 
-        if foreign:
-            log.warning(
-                "the workspace is locked by %s on another machine (%s)",
-                existing.pid,
-                existing.hostname,
+def _read_locked(fd: int) -> LockHolder | None:
+    os.lseek(fd, 0, os.SEEK_SET)
+    try:
+        raw = os.read(fd, 4096)
+    except OSError:
+        return None
+
+    if not raw:
+        return None
+
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+    return _parse_holder(payload)
+
+
+def _write_locked(fd: int, holder: LockHolder) -> None:
+    payload = json.dumps(asdict(holder), indent=2).encode("utf-8")
+    os.ftruncate(fd, 0)
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.write(fd, payload)
+
+
+def _evaluate_existing(existing: LockHolder | None, *, take_over: bool) -> LockState | None:
+    """Return a refusal state, or `None` when acquisition may proceed."""
+    if existing is None or take_over:
+        return None
+
+    foreign = existing.hostname != socket.gethostname()
+
+    if foreign:
+        log.warning(
+            "the workspace is locked by %s on another machine (%s)",
+            existing.pid,
+            existing.hostname,
+        )
+        return LockState(acquired=False, holder=existing, foreign_host=True)
+
+    if _is_alive(existing):
+        log.warning("the workspace is locked by a running process (pid %s)", existing.pid)
+        return LockState(acquired=False, holder=existing)
+
+    log.info("replacing a stale lock from pid %s", existing.pid)
+    return None
+
+
+def _lock_fd(fd: int) -> None:
+    import msvcrt
+
+    os.lseek(fd, 0, os.SEEK_SET)
+    msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+
+
+def _unlock_fd(fd: int) -> None:
+    import msvcrt
+
+    os.lseek(fd, 0, os.SEEK_SET)
+    with suppress(OSError):
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+
+def _acquire_with_file_lock(lock_file: Path, boot_id: str, *, take_over: bool) -> LockState:
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_file), os.O_CREAT | os.O_RDWR)
+    try:
+        _lock_fd(fd)
+        try:
+            existing = _read_locked(fd)
+            refusal = _evaluate_existing(existing, take_over=take_over)
+            if refusal is not None:
+                return refusal
+
+            holder = LockHolder(
+                pid=os.getpid(),
+                hostname=socket.gethostname(),
+                boot_id=boot_id,
+                started_at=utcnow_iso(),
+                process_started_at=_process_start_time(os.getpid()),
             )
-            return LockState(acquired=False, holder=existing, foreign_host=True)
+            _write_locked(fd, holder)
+            return LockState(acquired=True, holder=holder)
+        finally:
+            _unlock_fd(fd)
+    finally:
+        os.close(fd)
 
-        if _is_alive(existing):
-            log.warning("the workspace is locked by a running process (pid %s)", existing.pid)
-            return LockState(acquired=False, holder=existing)
 
-        # Stale. This is the normal case, not the exception — see the module
-        # docstring on the Job Object kill path.
-        log.info("replacing a stale lock from pid %s", existing.pid)
+def _acquire_legacy(lock_file: Path, boot_id: str, *, take_over: bool) -> LockState:
+    """Non-Windows fallback used only when the CI matrix runs backend tests elsewhere."""
+    existing = read(lock_file)
+    refusal = _evaluate_existing(existing, take_over=take_over)
+    if refusal is not None:
+        return refusal
 
     holder = LockHolder(
         pid=os.getpid(),
@@ -186,9 +261,21 @@ def acquire(lock_file: Path, boot_id: str, *, take_over: bool = False) -> LockSt
         started_at=utcnow_iso(),
         process_started_at=_process_start_time(os.getpid()),
     )
-
     lock_file.write_text(json.dumps(asdict(holder), indent=2), encoding="utf-8")
     return LockState(acquired=True, holder=holder)
+
+
+def acquire(lock_file: Path, boot_id: str, *, take_over: bool = False) -> LockState:
+    """Take the workspace lock, or report who holds it.
+
+    `take_over=True` is the user having pressed the button. It is the only way
+    past a live-looking lock, and it is deliberately a decision rather than a
+    heuristic — we cannot tell a live instance on another machine from a
+    crashed one.
+    """
+    if os.name == "nt":
+        return _acquire_with_file_lock(lock_file, boot_id, take_over=take_over)
+    return _acquire_legacy(lock_file, boot_id, take_over=take_over)
 
 
 def release(lock_file: Path, boot_id: str) -> None:
@@ -199,6 +286,32 @@ def release(lock_file: Path, boot_id: str) -> None:
     have replaced our lock while we were still running — deleting it then would
     unlock a workspace somebody else is actively using.
     """
+    if os.name == "nt":
+        if not lock_file.exists():
+            return
+
+        fd = os.open(str(lock_file), os.O_RDWR)
+        try:
+            _lock_fd(fd)
+            try:
+                holder = _read_locked(fd)
+                if holder is None:
+                    return
+                if holder.boot_id != boot_id:
+                    log.warning("not releasing the lock: it belongs to boot %s", holder.boot_id)
+                    return
+                os.ftruncate(fd, 0)
+            finally:
+                _unlock_fd(fd)
+        finally:
+            os.close(fd)
+
+        try:
+            lock_file.unlink(missing_ok=True)
+        except OSError:
+            log.warning("could not remove %s", lock_file, exc_info=True)
+        return
+
     holder = read(lock_file)
 
     if holder is None:

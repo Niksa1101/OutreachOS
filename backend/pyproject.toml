@@ -7,11 +7,16 @@ requires-python = "==3.12.*"
 dependencies = [
     "alembic>=1.14",
     "fastapi>=0.115",
+    # Tech.md §9: pin exact; re-verify overlay golden PNGs on any Pillow bump.
+    "pillow==11.1.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "sqlalchemy>=2.0",
     "uvicorn>=0.34",
 ]
+
+[project.scripts]
+outreachos-render = "outreachos_backend.rendering.cli:main"
 
 [dependency-groups]
 dev = [
@@ -48,6 +53,7 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 # ANN is intentionally off: mypy --strict already requires annotations, and
 # running both produces duplicate diagnostics for the same omission.
+# Q184 import boundary is enforced by tests/rendering/test_import_boundary.py
 
 [tool.ruff.lint.isort]
 known-first-party = ["outreachos_backend"]
@@ -68,3 +74,6 @@ testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "render: golden-frame and FFmpeg integration tests (requires vendor/ffmpeg)",
+]

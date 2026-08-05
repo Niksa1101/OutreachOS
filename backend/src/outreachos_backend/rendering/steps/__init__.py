@@ -1,9 +1,22 @@
-"""Composite step objects.
+"""Composite pipeline steps."""
 
-Each step contributes nodes to a single FFmpeg filtergraph. The pipeline is an
-ordered list of these rather than a hardcoded command string, precisely so that
-deferred features — text layers above all — slot in additively instead of
-forcing a restructure.
+from outreachos_backend.rendering.steps.alpha_fade import AlphaFadeStep
+from outreachos_backend.rendering.steps.alpha_merge import AlphaCompositeStep, AlphaMergeStep
+from outreachos_backend.rendering.steps.bleed_pad import BleedPadStep
+from outreachos_backend.rendering.steps.focal_crop import FocalCropStep
+from outreachos_backend.rendering.steps.fps import FpsStep
+from outreachos_backend.rendering.steps.overlay import OverlayStep
+from outreachos_backend.rendering.steps.scale_pad import ScalePadStep
+from outreachos_backend.rendering.steps.tpad import TpadStep
 
-P1 assembles: trim -> scale/pad -> fps -> tpad -> overlay -> encode.
-"""
+__all__ = [
+    "AlphaCompositeStep",
+    "AlphaFadeStep",
+    "AlphaMergeStep",
+    "BleedPadStep",
+    "FocalCropStep",
+    "FpsStep",
+    "OverlayStep",
+    "ScalePadStep",
+    "TpadStep",
+]

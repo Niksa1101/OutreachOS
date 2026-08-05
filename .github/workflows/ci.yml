@@ -127,6 +127,16 @@ jobs:
       - name: Install backend dependencies
         run: uv sync --directory backend --frozen
 
+      - name: Cache FFmpeg binaries
+        uses: actions/cache@v4
+        with:
+          path: vendor/ffmpeg
+          key: ffmpeg-autobuild-2026-08-03-14-02-win64-gpl-7.1
+
+      - name: Fetch FFmpeg
+        shell: pwsh
+        run: ./scripts/fetch-ffmpeg.ps1
+
       - run: uv run --directory backend ruff check .
       - run: uv run --directory backend ruff format --check .
       - run: uv run --directory backend mypy .

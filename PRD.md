@@ -1,6 +1,6 @@
 # OutreachOS — Product Requirements & Implementation Plan
 
-> **Status:** Specification locked. **P0 complete** (2026-08-04). **P1 in progress next.**
+> **Status:** Specification locked. **P0 complete** (2026-08-04). **P1 complete** (2026-08-05).
 > **Version:** 1.0 (Video Composer)
 > **Target platform:** Windows 11 (code written cross-platform-clean)
 
@@ -274,7 +274,8 @@ Blocking issues disable *Generate Videos* with a stated reason. Warnings render 
 
 ### P1 — Headless Render Engine
 
-**Status:** 🔜 **Next** — not started.
+**Status:** ✅ **Complete** (2026-08-05) — verification record in
+[`docs/p1-verification.md`](docs/p1-verification.md).
 
 **Goal:** Correct video output, driven entirely from a CLI. **Zero UI.**
 
@@ -442,6 +443,6 @@ These are **implementation risks with named fallbacks**, not open decisions. All
 
 ## 10. Decision Record
 
-All 88 specification decisions were resolved through structured interview before implementation. Each phase must record any deviation in `docs/adr/` with its rationale.
+Decisions resolved before each phase: **Q1–Q126 before P0**, **Q127–Q201 before P1** — full records in [`docs/decisions/`](docs/decisions/). Each phase must record any deviation as an ADR with its rationale.
 
 **A decision is not changed by writing different code. It is changed by writing a new ADR.**

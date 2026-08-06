@@ -76,6 +76,15 @@ def test_the_documented_endpoints_are_the_ones_q88_names(app: FastAPI) -> None:
         "/api/v1/health",
         "/api/v1/client-logs",
         "/api/v1/settings",
+        "/api/v1/campaigns",
+        "/api/v1/campaigns/{campaign_id}",
+        "/api/v1/campaigns/{campaign_id}/assets/{asset_id}/relocate",
+        "/api/v1/campaigns/{campaign_id}/delete-preview",
+        "/api/v1/campaigns/{campaign_id}/duplicate",
+        "/api/v1/campaigns/{campaign_id}/preview-frame",
+        "/api/v1/campaigns/{campaign_id}/recordings/import",
+        "/api/v1/campaigns/{campaign_id}/recordings/{recording_id}",
+        "/api/v1/campaigns/{campaign_id}/talking-head",
     }
 
 

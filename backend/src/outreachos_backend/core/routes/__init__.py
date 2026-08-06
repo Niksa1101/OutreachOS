@@ -22,6 +22,7 @@ from fastapi import APIRouter
 
 from outreachos_backend.core.routes import client_logs, events, health, settings
 from outreachos_backend.core.security import RequireToken
+from outreachos_backend.modules.video_composer import router as video_composer
 
 __all__ = ["api_v1_router"]
 
@@ -32,3 +33,4 @@ api_v1_router.include_router(health.router)
 api_v1_router.include_router(events.router)
 api_v1_router.include_router(client_logs.router)
 api_v1_router.include_router(settings.router)
+api_v1_router.include_router(video_composer.router)

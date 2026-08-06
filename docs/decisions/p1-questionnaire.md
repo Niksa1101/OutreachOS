@@ -5,7 +5,7 @@ five rounds. Each entry gives the question, the decision, and — where the answ
 deviated from the recommendation — the reasoning verbatim. **The rationales are
 the point of this document.**
 
-Items that *elaborate* the locked specs live here. Items that *contradict* one
+Items that _elaborate_ the locked specs live here. Items that _contradict_ one
 also carry an ADR that names the superseded section. See [`README.md`](README.md).
 
 Notation: `▲` marks a deviation from the recommended option. `′` marks a variant
@@ -300,9 +300,9 @@ shadow not clipped, no audio click, rotated phone upright — once before declar
 
 ## Cross-reference: code decisions recorded here (not document edits)
 
-| Item | Decision | Where |
-|------|----------|-------|
-| Q165 | `-g 60 -keyint_min 60`, reject `-sc_threshold 0` | `rendering/presets.py` |
-| Q148 | Pillow exact pin | `backend/pyproject.toml` |
-| Q148 forward | `RING_CAPACITY = 200` undersized at P4 | `core/events.py:57` |
-| Q184 | Import ban | `pyproject.toml` `[tool.ruff.lint.flake8-tidy-imports]` |
+| Item         | Decision                                         | Where                                                   |
+| ------------ | ------------------------------------------------ | ------------------------------------------------------- |
+| Q165         | `-g 60 -keyint_min 60`, reject `-sc_threshold 0` | `rendering/presets.py`                                  |
+| Q148         | Pillow exact pin                                 | `backend/pyproject.toml`                                |
+| Q148 forward | `RING_CAPACITY = 200` undersized at P4           | `core/events.py:57`                                     |
+| Q184         | Import ban                                       | `pyproject.toml` `[tool.ruff.lint.flake8-tidy-imports]` |

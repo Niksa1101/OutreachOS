@@ -22,6 +22,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 __all__ = [
@@ -110,6 +111,15 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _handle_http_exception(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = _STATUS_TO_CODE.get(exc.status_code, ApiErrorCode.INTERNAL_ERROR)
         return _envelope(exc.status_code, code, str(exc.detail))
+
+    @app.exception_handler(IntegrityError)
+    async def _handle_integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
+        log.warning("database integrity constraint violated", exc_info=exc)
+        return _envelope(
+            status.HTTP_409_CONFLICT,
+            ApiErrorCode.CONFLICT,
+            "That change conflicts with existing data.",
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:

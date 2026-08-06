@@ -193,7 +193,12 @@ def _serve(
 
     bus = EventBus(boot_id=handshake.boot_id)
     app.state.event_bus = bus
-    app.state.runtime = Runtime(report=report, token=handshake.token, dev=config.dev)
+    app.state.runtime = Runtime(
+        report=report,
+        token=handshake.token,
+        dev=config.dev,
+        ffmpeg_dir=config.ffmpeg_dir,
+    )
     app.state.database = _open_database(
         layout, report, allow_without_backup=config.allow_without_backup
     )

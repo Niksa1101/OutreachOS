@@ -7,16 +7,16 @@ Recorded on 2026-08-05 against `vendor/ffmpeg` build
 
 ## Automated checklist
 
-| Criterion | Command | Status |
-|---|---|---|
-| CLI renders batch to spec-correct MP4s | `outreachos-render render --config tests/fixtures/render/batch.json --out ./out` | pass — 8/8 outputs, correct frame count and duration |
-| Golden frames pass | `pytest -m render` | pass — 9 cases × 2 frames, max delta ≤ 2 |
-| Recording shorter than D | golden case `short_recording` | pass — warns `recording_shorter_than_talking_head`, freezes last frame via `tpad=stop_mode=clone` |
-| Non-16:9 source | golden cases `aspect_4_3`, `aspect_21_9` | pass |
-| Cache hit | `build-alpha` twice, second is no-op | pass — `test_cache_hit_requires_probe_ok`, and the bench's warm pass rebuilds nothing |
-| Cache invalidation | mutate overlay → new key | pass — `test_assets_key_changes_when_overlay_changes`, `test_alpha_key_nested_under_assets_key` |
-| Alpha cache batch speedup | `outreachos-render bench --markdown docs/p1-verification.md` | pass — see the bench table below |
-| Frame-accurate trim | gray-ramp fixture | pass — `test_frame_accurate_trim_lands_on_the_expected_ramp_frame` |
+| Criterion                              | Command                                                                          | Status                                                                                            |
+| -------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| CLI renders batch to spec-correct MP4s | `outreachos-render render --config tests/fixtures/render/batch.json --out ./out` | pass — 8/8 outputs, correct frame count and duration                                              |
+| Golden frames pass                     | `pytest -m render`                                                               | pass — 9 cases × 2 frames, max delta ≤ 2                                                          |
+| Recording shorter than D               | golden case `short_recording`                                                    | pass — warns `recording_shorter_than_talking_head`, freezes last frame via `tpad=stop_mode=clone` |
+| Non-16:9 source                        | golden cases `aspect_4_3`, `aspect_21_9`                                         | pass                                                                                              |
+| Cache hit                              | `build-alpha` twice, second is no-op                                             | pass — `test_cache_hit_requires_probe_ok`, and the bench's warm pass rebuilds nothing             |
+| Cache invalidation                     | mutate overlay → new key                                                         | pass — `test_assets_key_changes_when_overlay_changes`, `test_alpha_key_nested_under_assets_key`   |
+| Alpha cache batch speedup              | `outreachos-render bench --markdown docs/p1-verification.md`                     | pass — see the bench table below                                                                  |
+| Frame-accurate trim                    | gray-ramp fixture                                                                | pass — `test_frame_accurate_trim_lands_on_the_expected_ramp_frame`                                |
 
 Two additional guards were added while building the suite, both for defects the
 checklist above did not cover:
@@ -48,8 +48,8 @@ is the behaviour this risk called for.
 
 ### Bench results (cold vs warm)
 
-| Videos | Cold | Warm | FFmpeg |
-|---|---|---|---|
+| Videos   | Cold   | Warm  | FFmpeg                         |
+| -------- | ------ | ----- | ------------------------------ |
 | 8 videos | 12.16s | 8.76s | n7.1.5-12-g1fdbca85aa-20260803 |
 
 Cold builds the alpha clip from scratch; warm reuses the cache entry. The 3.4s

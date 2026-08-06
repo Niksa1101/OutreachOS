@@ -103,6 +103,7 @@ class MediaAsset(TimestampMixin, Base):
             _check_in("probe_status", ProbeStatus), name="ck_media_assets_probe_status"
         ),
         CheckConstraint("file_missing IN (0, 1)", name="ck_media_assets_file_missing"),
+        CheckConstraint("name_auto_suffixed IN (0, 1)", name="ck_media_assets_name_auto_suffixed"),
         CheckConstraint(
             "has_audio IS NULL OR has_audio IN (0, 1)",
             name="ck_media_assets_has_audio",
@@ -167,6 +168,9 @@ class MediaAsset(TimestampMixin, Base):
     # --- link health ---
     file_missing: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_verified_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    name_auto_suffixed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    """``screen_recording`` only — set when ``resolve_unique_company_name`` adds a suffix."""
 
     # --- talking head only ---
     trim_start_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

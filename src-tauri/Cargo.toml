@@ -25,7 +25,11 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# ADR-0012: `protocol-asset` serves the campaign preview frame and (ticket 13)
+# the talking-head source video to the webview. Off by default in the tauri
+# crate — see the ADR for why this beats a second, header-less HTTP surface on
+# the authenticated backend.
+tauri = { version = "2", features = ["protocol-asset"] }
 
 # ADR-0003 / Q49: final plugin set. No `fs`, no `shell` (manual spawn is what
 # gives us CREATE_NO_WINDOW, the Job Object, and a stdin we hold open), no `log`

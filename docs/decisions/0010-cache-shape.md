@@ -11,7 +11,7 @@ defines a single alpha cache key over talking-head identity + overlay config.
 
 Rendering requires **three** compositing layers: a backdrop (shadow + background)
 behind the video, a mask, and a frame (border) in front. A shadow must render
-*behind* the talking-head video; a border must render *in front*. Two PNGs
+_behind_ the talking-head video; a border must render _in front_. Two PNGs
 cannot express that ordering without an extra decode pass or incorrect z-order.
 
 Format-version bumps (code changes to asset generation or alpha encoding) must

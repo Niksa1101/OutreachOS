@@ -15,6 +15,7 @@ duplicates what Retry already does (Q78).
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
 
 from outreachos_backend._version import __version__
@@ -89,3 +90,4 @@ class Runtime:
     report: BootReport
     token: str
     dev: bool
+    ffmpeg_dir: Path | None = None

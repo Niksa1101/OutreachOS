@@ -29,6 +29,7 @@ import { HomeScreen } from '@/core/router/screens/HomeScreen';
 import { SettingsScreen } from '@/core/router/screens/SettingsScreen';
 import { SetupScreen } from '@/core/router/screens/SetupScreen';
 import { CampaignsScreen } from '@/modules/video-composer/routes/CampaignsScreen';
+import { CampaignDetailScreen } from '@/modules/video-composer/routes/CampaignDetailScreen';
 import { RenderQueueScreen } from '@/modules/video-composer/routes/RenderQueueScreen';
 
 /**
@@ -113,6 +114,12 @@ const campaignsRoute = createRoute({
   component: CampaignsScreen,
 });
 
+const campaignDetailRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/video-composer/campaigns/$campaignId',
+  component: CampaignDetailScreen,
+});
+
 const renderQueueRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/video-composer/queue',
@@ -144,6 +151,7 @@ const routeTree = rootRoute.addChildren([
     homeRoute,
     settingsRoute,
     campaignsRoute,
+    campaignDetailRoute,
     renderQueueRoute,
     ...devRoutes,
   ]),

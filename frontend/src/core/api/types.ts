@@ -24,6 +24,25 @@ export type HealthResponse = JsonResponse<paths['/api/v1/health']['get']['respon
 
 export type SettingsResponse = JsonResponse<paths['/api/v1/settings']['get']['responses'][200]>;
 
+export type CampaignSummary = Schemas['CampaignSummary'];
+export type CampaignDetail = Schemas['CampaignDetail'];
+export type CampaignListResponse = Schemas['CampaignListResponse'];
+export type CampaignStatus = Schemas['CampaignStatus'];
+export type CampaignValidation = Schemas['CampaignValidation'];
+export type ValidationIssue = Schemas['ValidationIssue'];
+export type CampaignCreateRequest = Schemas['CampaignCreateRequest'];
+export type CampaignUpdateRequest = Schemas['CampaignUpdateRequest'];
+export type CampaignDeletePreview = Schemas['CampaignDeletePreview'];
+export type TalkingHeadDetail = Schemas['TalkingHeadDetail'];
+export type TalkingHeadAssignRequest = Schemas['TalkingHeadAssignRequest'];
+export type AssetRelocateRequest = Schemas['AssetRelocateRequest'];
+export type RecordingDetail = Schemas['RecordingDetail'];
+export type RecordingUpdateRequest = Schemas['RecordingUpdateRequest'];
+export type RecordingImportRequest = Schemas['RecordingImportRequest'];
+export type RecordingImportResponse = Schemas['RecordingImportResponse'];
+export type RecordingImportRejected = Schemas['RecordingImportRejected'];
+export type PreviewFrameResponse = Schemas['PreviewFrameResponse'];
+
 export type ClientLogBatch = NonNullable<
   paths['/api/v1/client-logs']['post']['requestBody']
 >['content']['application/json'];

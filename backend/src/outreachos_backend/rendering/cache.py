@@ -19,17 +19,21 @@ from outreachos_backend.rendering.probe import ProbeResult, probe_media
 __all__ = [
     "ALPHA_FORMAT_VERSION",
     "ASSETS_FORMAT_VERSION",
+    "PREVIEW_FRAME_FORMAT_VERSION",
     "AlphaManifest",
     "CacheLayout",
     "alpha_cache_key",
     "assets_cache_key",
     "canonical_json",
+    "preview_frame_cache_key",
+    "preview_frame_path",
     "stat_fingerprint",
     "temp_sibling",
 ]
 
 ASSETS_FORMAT_VERSION = 1
 ALPHA_FORMAT_VERSION = 1
+PREVIEW_FRAME_FORMAT_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,10 @@ class CacheLayout:
     @property
     def alpha_dir(self) -> Path:
         return self.root / "alpha"
+
+    @property
+    def frames_dir(self) -> Path:
+        return self.root / "frames"
 
 
 @dataclass(frozen=True)
@@ -93,6 +101,26 @@ def alpha_cache_key(
         "assets_key": assets_key,
     }
     return _sha256(canonical_json(payload))
+
+
+def preview_frame_cache_key(source_path: Path, timestamp_ms: int) -> str:
+    """Content-addressed by source file identity, not by campaign or asset id.
+
+    Ticket 09: re-extraction on a source change falls out for free — relocating
+    or replacing the first recording changes ``stat_fingerprint`` and therefore
+    the key, so a stale frame is never served without any explicit invalidation
+    step, the same self-invalidating shape as ``alpha_cache_key``.
+    """
+    payload = {
+        "version": PREVIEW_FRAME_FORMAT_VERSION,
+        "source": stat_fingerprint(source_path),
+        "timestamp_ms": timestamp_ms,
+    }
+    return _sha256(canonical_json(payload))
+
+
+def preview_frame_path(layout: CacheLayout, frame_key: str) -> Path:
+    return layout.frames_dir / f"{frame_key}.jpg"
 
 
 def alpha_clip_path(layout: CacheLayout, alpha_key: str) -> Path:

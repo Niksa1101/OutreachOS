@@ -62,10 +62,332 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List campaigns */
+        get: operations["list_campaigns_api_v1_campaigns_get"];
+        put?: never;
+        /** Create a campaign */
+        post: operations["create_campaign_api_v1_campaigns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one campaign */
+        get: operations["get_campaign_api_v1_campaigns__campaign_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete a campaign */
+        delete: operations["delete_campaign_api_v1_campaigns__campaign_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a campaign */
+        patch: operations["rename_campaign_api_v1_campaigns__campaign_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate a campaign */
+        post: operations["duplicate_campaign_api_v1_campaigns__campaign_id__duplicate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/talking-head": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Assign or replace the campaign talking head */
+        put: operations["assign_talking_head_api_v1_campaigns__campaign_id__talking_head_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/recordings/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import screen recordings in batch */
+        post: operations["import_recordings_api_v1_campaigns__campaign_id__recordings_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/recordings/{recording_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a screen recording reference */
+        delete: operations["delete_recording_api_v1_campaigns__campaign_id__recordings__recording_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a screen recording's company name */
+        patch: operations["update_recording_api_v1_campaigns__campaign_id__recordings__recording_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/assets/{asset_id}/relocate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Relocate a missing source file to a new path */
+        put: operations["relocate_asset_api_v1_campaigns__campaign_id__assets__asset_id__relocate_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/preview-frame": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the split-view preview's background frame */
+        get: operations["get_preview_frame_api_v1_campaigns__campaign_id__preview_frame_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/delete-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview what deleting a campaign removes */
+        get: operations["preview_delete_campaign_api_v1_campaigns__campaign_id__delete_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AssetRelocateRequest */
+        AssetRelocateRequest: {
+            /**
+             * Source Path
+             * @description Absolute path to the relocated video file on disk.
+             */
+            source_path: string;
+        };
+        /** CampaignCreateRequest */
+        CampaignCreateRequest: {
+            /**
+             * Name
+             * @description Defaults to 'Untitled campaign' when omitted.
+             */
+            name?: string | null;
+        };
+        /** CampaignDeleteAlphaClip */
+        CampaignDeleteAlphaClip: {
+            /**
+             * Present
+             * @description Whether a cached alpha clip file exists on disk.
+             */
+            present: boolean;
+            /**
+             * Size Bytes
+             * @description File size in bytes when ``present`` is true.
+             */
+            size_bytes?: number | null;
+        };
+        /** CampaignDeleteOutputs */
+        CampaignDeleteOutputs: {
+            /**
+             * Count
+             * @description Number of un-exported output files in workspace staging.
+             */
+            count: number;
+            /**
+             * Total Size Bytes
+             * @description Combined size of staged output files in bytes.
+             */
+            total_size_bytes: number;
+        };
+        /** CampaignDeletePreview */
+        CampaignDeletePreview: {
+            /** Campaign Id */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /**
+             * Asset Count
+             * @description Media asset rows that will be removed with the campaign.
+             */
+            asset_count: number;
+            /** Recording Count */
+            recording_count: number;
+            /**
+             * Talking Head Count
+             * @description 0 or 1.
+             */
+            talking_head_count: number;
+            alpha_clip: components["schemas"]["CampaignDeleteAlphaClip"];
+            outputs: components["schemas"]["CampaignDeleteOutputs"];
+        };
+        /** CampaignDetail */
+        CampaignDetail: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Recording Count
+             * @description Number of screen recordings in the campaign.
+             */
+            recording_count: number;
+            /**
+             * Last Rendered At
+             * @description ISO-8601 UTC of the most recent successful render, if any.
+             */
+            last_rendered_at: string | null;
+            status: components["schemas"]["CampaignStatus"];
+            /**
+             * Overlay Config
+             * @description Overlay JSON, DB.md §4.1.
+             */
+            overlay_config: string;
+            /** Overlay Schema Version */
+            overlay_schema_version: number;
+            talking_head?: components["schemas"]["TalkingHeadDetail"] | null;
+            /**
+             * Recordings
+             * @description Screen recordings in sort order.
+             */
+            recordings?: components["schemas"]["RecordingDetail"][];
+            validation: components["schemas"]["CampaignValidation"];
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** CampaignListResponse */
+        CampaignListResponse: {
+            /** Campaigns */
+            campaigns: components["schemas"]["CampaignSummary"][];
+        };
+        /**
+         * CampaignStatus
+         * @description Backend-computed campaign status.
+         *
+         *     Ticket 01 starts thin: draft-like or has rendered before. Ticket 07 extends
+         *     this with validation state; ticket 15 adds queue activity. The UI renders
+         *     whatever value the backend sends.
+         * @enum {string}
+         */
+        CampaignStatus: "draft" | "ready" | "blocked" | "has_rendered";
+        /** CampaignSummary */
+        CampaignSummary: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Recording Count
+             * @description Number of screen recordings in the campaign.
+             */
+            recording_count: number;
+            /**
+             * Last Rendered At
+             * @description ISO-8601 UTC of the most recent successful render, if any.
+             */
+            last_rendered_at: string | null;
+            status: components["schemas"]["CampaignStatus"];
+        };
+        /** CampaignUpdateRequest */
+        CampaignUpdateRequest: {
+            /** Name */
+            name: string;
+        };
+        /** CampaignValidation */
+        CampaignValidation: {
+            /**
+             * Issues
+             * @description All validation findings, computed on demand and never persisted.
+             */
+            issues?: components["schemas"]["ValidationIssue"][];
+            /**
+             * Can Generate
+             * @description False when campaign-level blockers leave nothing to enqueue.
+             */
+            can_generate: boolean;
+            /**
+             * Generate Blocked Reason
+             * @description Specific reason Generate is disabled, when ``can_generate`` is false.
+             */
+            generate_blocked_reason?: string | null;
+            /**
+             * Renderable Recording Count
+             * @description Recordings that would be enqueued on Generate.
+             */
+            renderable_recording_count: number;
+            /**
+             * Warning Count
+             * @description Number of warning-severity issues.
+             */
+            warning_count: number;
+        };
         /** ClientLogAccepted */
         ClientLogAccepted: {
             /** Accepted */
@@ -139,12 +461,115 @@ export interface components {
             /** Started At */
             started_at: string;
         };
+        /** PreviewFrameResponse */
+        PreviewFrameResponse: {
+            /**
+             * Available
+             * @description True when ``frame_path`` points at a usable cached frame.
+             */
+            available: boolean;
+            /**
+             * Frame Path
+             * @description Absolute path to the cached JPEG frame, when available.
+             */
+            frame_path?: string | null;
+            /**
+             * Error
+             * @description Plain-language extraction failure reason. Only set when a first recording exists but the frame could not be produced — absent (not an error) when the campaign simply has no recordings yet.
+             */
+            error?: string | null;
+        };
         /**
          * QualityPreset
          * @description DB.md §3.1 and §3.5.
          * @enum {string}
          */
         QualityPreset: "draft" | "standard" | "high";
+        /** RecordingDetail */
+        RecordingDetail: {
+            /** Id */
+            id: string;
+            /**
+             * Source Path
+             * @description Absolute path to the source file on disk.
+             */
+            source_path: string;
+            /** Source Filename */
+            source_filename: string;
+            /**
+             * File Missing
+             * @description True when the source file is absent at ``source_path``.
+             */
+            file_missing: boolean;
+            /** Company Name */
+            company_name: string;
+            /**
+             * Output Basename
+             * @description Resolved output filename stem at add time, including any (2) suffix.
+             */
+            output_basename: string;
+            /** Probe Status */
+            probe_status: string;
+            /** Probe Error */
+            probe_error?: string | null;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+            /** Fps */
+            fps?: number | null;
+            /** Video Codec */
+            video_codec?: string | null;
+            /** Has Audio */
+            has_audio?: boolean | null;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** RecordingImportRejected */
+        RecordingImportRejected: {
+            /** Source Path */
+            source_path: string;
+            /**
+             * Message
+             * @description Plain-language reason this file was not imported.
+             */
+            message: string;
+        };
+        /** RecordingImportRequest */
+        RecordingImportRequest: {
+            /**
+             * Source Paths
+             * @description Absolute paths to video files on disk. Each file is probed but never copied.
+             */
+            source_paths: string[];
+        };
+        /** RecordingImportResponse */
+        RecordingImportResponse: {
+            /** Added */
+            added: components["schemas"]["RecordingDetail"][];
+            /**
+             * Rejected
+             * @description Files rejected before probing, such as duplicate paths or missing files.
+             */
+            rejected: components["schemas"]["RecordingImportRejected"][];
+            /**
+             * Failed
+             * @description Files that were added but could not be probed as video.
+             */
+            failed: components["schemas"]["RecordingImportRejected"][];
+            /**
+             * Recording Count
+             * @description Total screen recordings in the campaign after import.
+             */
+            recording_count: number;
+        };
+        /** RecordingUpdateRequest */
+        RecordingUpdateRequest: {
+            /** Company Name */
+            company_name: string;
+        };
         /**
          * SettingsResponse
          * @description DB.md §3.5, plus the boot facts Settings displays alongside them.
@@ -180,6 +605,80 @@ export interface components {
             migration_head: string | null;
             /** Backend Log Path */
             backend_log_path: string;
+        };
+        /** TalkingHeadAssignRequest */
+        TalkingHeadAssignRequest: {
+            /**
+             * Source Path
+             * @description Absolute path to a video file on disk. The file is probed but never copied.
+             */
+            source_path: string;
+        };
+        /** TalkingHeadDetail */
+        TalkingHeadDetail: {
+            /** Id */
+            id: string;
+            /**
+             * Source Path
+             * @description Absolute path to the source file on disk.
+             */
+            source_path: string;
+            /** Source Filename */
+            source_filename: string;
+            /**
+             * File Missing
+             * @description True when the source file is absent at ``source_path``.
+             */
+            file_missing: boolean;
+            /** Duration Ms */
+            duration_ms: number;
+            /**
+             * Width
+             * @description Display width after rotation, in pixels.
+             */
+            width: number;
+            /**
+             * Height
+             * @description Display height after rotation, in pixels.
+             */
+            height: number;
+            /** Fps */
+            fps: number;
+            /** Video Codec */
+            video_codec: string;
+            /** Has Audio */
+            has_audio: boolean;
+            /** Trim Start Ms */
+            trim_start_ms: number;
+            /** Trim End Ms */
+            trim_end_ms: number;
+            /** Focal X */
+            focal_x: number;
+            /** Focal Y */
+            focal_y: number;
+        };
+        /** ValidationIssue */
+        ValidationIssue: {
+            /**
+             * Code
+             * @description DB.md §4.3 issue code.
+             */
+            code: string;
+            /**
+             * Severity
+             * @description ``blocking`` or ``warning``.
+             */
+            severity: string;
+            /**
+             * Message
+             * @description Plain-language explanation for the UI.
+             */
+            message: string;
+            /**
+             * Asset Id
+             * @description Media asset row this issue applies to, when row-scoped.
+             */
+            asset_id?: string | null;
         };
         /** ErrorEnvelope */
         ErrorEnvelope: {
@@ -341,6 +840,688 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_campaigns_api_v1_campaigns_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignListResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_campaign_api_v1_campaigns_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_campaign_api_v1_campaigns__campaign_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_campaign_api_v1_campaigns__campaign_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rename_campaign_api_v1_campaigns__campaign_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    duplicate_campaign_api_v1_campaigns__campaign_id__duplicate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    assign_talking_head_api_v1_campaigns__campaign_id__talking_head_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TalkingHeadAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    import_recordings_api_v1_campaigns__campaign_id__recordings_import_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordingImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingImportResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_recording_api_v1_campaigns__campaign_id__recordings__recording_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+                recording_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_recording_api_v1_campaigns__campaign_id__recordings__recording_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+                recording_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordingUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    relocate_asset_api_v1_campaigns__campaign_id__assets__asset_id__relocate_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssetRelocateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_preview_frame_api_v1_campaigns__campaign_id__preview_frame_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewFrameResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    preview_delete_campaign_api_v1_campaigns__campaign_id__delete_preview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDeletePreview"];
                 };
             };
             /** @description Error */

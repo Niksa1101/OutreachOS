@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::boot::{BackendInfo, BootMachine, BootState, SpawnFlags};
 use crate::logging::CLIENT_TARGET;
@@ -146,6 +146,29 @@ pub fn forget_workspace(
     // step with the guard.
     machine.start();
     Ok(())
+}
+
+/* -------------------------------------------------------------------------- */
+/* Media (ADR-0012)                                                           */
+/* -------------------------------------------------------------------------- */
+
+/// Grant the asset protocol read access to exactly one absolute file path.
+///
+/// ADR-0012: the static `assetProtocol.scope` in `tauri.conf.json` is empty on
+/// purpose — the workspace root and every source video path are user-chosen at
+/// runtime, so there is nothing fixed to name ahead of time. The frontend calls
+/// this once per path it got back from the authenticated backend (the cached
+/// preview frame, and — ticket 13 — a recording's source video) right before
+/// building a `convertFileSrc` URL for it, the same "trust what the backend
+/// already vetted" shape as `dialog:allow-open` trusting the native picker.
+///
+/// `allow_file` is additive and idempotent for a path already in scope, and
+/// the scope lives only for this process's lifetime — nothing persists it.
+#[tauri::command]
+pub fn allow_media_path(app: AppHandle, path: String) -> Result<(), String> {
+    app.asset_protocol_scope()
+        .allow_file(Path::new(&path))
+        .map_err(|error| error.to_string())
 }
 
 /* -------------------------------------------------------------------------- */

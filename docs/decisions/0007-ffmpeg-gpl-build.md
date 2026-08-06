@@ -16,7 +16,7 @@ the golden-frame test encoder. libx264 is GPL-only. FFmpeg's `configure` refuses
 the encoder the specification names**.
 
 The LGPL alternative (libopenh264) has no CRF control, is weaker on
-screen-recording content, and sits *outside* Cisco's MPEG-LA umbrella once
+screen-recording content, and sits _outside_ Cisco's MPEG-LA umbrella once
 statically linked — a worse patent posture and worse video, to avoid a written
 source offer.
 
@@ -24,7 +24,7 @@ source offer.
 
 Take the BtbN **`win64-gpl` static build** — two self-contained executables
 (`ffmpeg.exe`, `ffprobe.exe`). The DLL-resolution hazard that came with the
-LGPL *shared* build disappears entirely.
+LGPL _shared_ build disappears entirely.
 
 Pin an immutable release **tag** (never `latest`), verify with `Get-FileHash`
 against a pinned SHA256, and archive the matching FFmpeg source tarball alongside

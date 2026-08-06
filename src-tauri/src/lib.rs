@@ -88,7 +88,8 @@ pub fn run() {
             commands::forget_workspace,
             commands::read_log_tail,
             commands::open_logs_folder,
-            commands::log_client_error
+            commands::log_client_error,
+            commands::allow_media_path
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

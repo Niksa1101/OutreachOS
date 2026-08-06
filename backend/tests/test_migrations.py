@@ -100,8 +100,9 @@ def test_cascade_delete_actually_cascades(database: Database) -> None:
         connection.execute(
             text(
                 "INSERT INTO media_assets (id, campaign_id, role, source_path, source_filename,"
-                " sort_order, probe_status, file_missing, created_at, updated_at)"
-                " VALUES ('a1', 'c1', 'screen_recording', 'C:/x.mp4', 'x.mp4', 0, 'pending', 0,"
+                " sort_order, probe_status, file_missing, name_auto_suffixed,"
+                " created_at, updated_at)"
+                " VALUES ('a1', 'c1', 'screen_recording', 'C:/x.mp4', 'x.mp4', 0, 'pending', 0, 0,"
                 " 'now', 'now')"
             )
         )

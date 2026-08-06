@@ -22,20 +22,21 @@ the spec is never edited in place.
 
 ## Index
 
-| ADR                                       | Subject                                                 | Status                                        |
-| ----------------------------------------- | ------------------------------------------------------- | --------------------------------------------- |
-| [0000](0000-template.md)                  | Template                                                | —                                             |
-| [0001](0001-shadcn-preset-vite.md)        | shadcn preset `b51GFh7y6` against a Vite target         | Pending — checkpoint 6                        |
-| [0002](0002-port-allocation-in-python.md) | The backend allocates its own port                      | Accepted — supersedes Tech.md §2              |
-| [0003](0003-tauri-plugin-set.md)          | Tauri plugin set — no `shell`, plus `clipboard-manager` | Accepted — supersedes Tech.md §2              |
-| [0004](0004-backend-package-layout.md)    | Backend package layout and FFmpeg location              | Accepted — supersedes Tech.md §4.3            |
-| [0005](0005-sse-client-library.md)        | SSE client is `eventsource` v3                          | Accepted                                      |
-| [0006](0006-pyinstaller-onedir.md)        | PyInstaller `onedir`, not `onefile`                     | Accepted — supersedes Tech.md §4, PRD §7 (P6) |
-| [0007](0007-ffmpeg-gpl-build.md)          | FFmpeg GPL static build (BtbN `win64-gpl`)              | Accepted — supersedes p0-questionnaire Q52   |
-| [0008](0008-alpha-clip-bleed-box.md)      | Alpha clip at bleed box, not bounding box               | Accepted — supersedes PRD §6.3                |
-| [0009](0009-determinism-definition.md)    | Determinism: byte-identical locally, tolerant cross-machine | Accepted — supersedes PRD §2 (Principle 6) |
-| [0010](0010-cache-shape.md)               | Three asset layers; nested cache keys                     | Accepted — supersedes DB.md §1, §5          |
-| [0011](0011-error-details-cap.md)         | 64 KiB cap on stored FFmpeg stderr                      | Accepted — supersedes DB.md §3.3            |
+| ADR                                       | Subject                                                     | Status                                        |
+| ----------------------------------------- | ----------------------------------------------------------- | --------------------------------------------- |
+| [0000](0000-template.md)                  | Template                                                    | —                                             |
+| [0001](0001-shadcn-preset-vite.md)        | shadcn preset `b51GFh7y6` against a Vite target             | Pending — checkpoint 6                        |
+| [0002](0002-port-allocation-in-python.md) | The backend allocates its own port                          | Accepted — supersedes Tech.md §2              |
+| [0003](0003-tauri-plugin-set.md)          | Tauri plugin set — no `shell`, plus `clipboard-manager`     | Accepted — supersedes Tech.md §2              |
+| [0004](0004-backend-package-layout.md)    | Backend package layout and FFmpeg location                  | Accepted — supersedes Tech.md §4.3            |
+| [0005](0005-sse-client-library.md)        | SSE client is `eventsource` v3                              | Accepted                                      |
+| [0006](0006-pyinstaller-onedir.md)        | PyInstaller `onedir`, not `onefile`                         | Accepted — supersedes Tech.md §4, PRD §7 (P6) |
+| [0007](0007-ffmpeg-gpl-build.md)          | FFmpeg GPL static build (BtbN `win64-gpl`)                  | Accepted — supersedes p0-questionnaire Q52    |
+| [0008](0008-alpha-clip-bleed-box.md)      | Alpha clip at bleed box, not bounding box                   | Accepted — supersedes PRD §6.3                |
+| [0009](0009-determinism-definition.md)    | Determinism: byte-identical locally, tolerant cross-machine | Accepted — supersedes PRD §2 (Principle 6)    |
+| [0010](0010-cache-shape.md)               | Three asset layers; nested cache keys                       | Accepted — supersedes DB.md §1, §5            |
+| [0011](0011-error-details-cap.md)         | 64 KiB cap on stored FFmpeg stderr                          | Accepted — supersedes DB.md §3.3              |
+| [0012](0012-local-media-transport.md)     | Local media transport — Tauri asset protocol                | Accepted                                      |
 
 ## Superseded specification sections
 

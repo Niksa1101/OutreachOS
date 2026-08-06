@@ -6,7 +6,7 @@
 
 ## Context
 
-PRD Principle 6 states: *Identical inputs must always produce identical outputs.*
+PRD Principle 6 states: _Identical inputs must always produce identical outputs._
 Taken literally with libx264, that requires `-threads 1` in production — libx264's
 default thread count derives from core count, so byte-identical output across
 machines is unachievable otherwise, at a 3–4× cost nobody would observe the

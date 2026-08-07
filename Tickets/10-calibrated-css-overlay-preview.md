@@ -8,7 +8,7 @@ This is the calibration baseline the rest of the overlay editor is built on: pre
 
 **Blocked by:** 09 — Split-view campaign layout with live preview background.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] The overlay renders over the preview frame from the persisted overlay config, at the correct anchor, size, and offset
 - [ ] Changing the config updates the preview immediately

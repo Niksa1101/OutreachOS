@@ -70,6 +70,9 @@ def test_alpha_graph_includes_merge_composite_fade() -> None:
         has_audio=True,
         box_width=320,
         box_height=320,
+        inner_width=320,
+        inner_height=320,
+        padding=0,
         bleed_width=576,
         bleed_height=584,
         inset_left=48,
@@ -107,6 +110,9 @@ def test_alpha_graph_input_args_match_filtergraph_indices() -> None:
         has_audio=True,
         box_width=320,
         box_height=320,
+        inner_width=320,
+        inner_height=320,
+        padding=0,
         bleed_width=576,
         bleed_height=584,
         inset_left=48,
@@ -137,6 +143,9 @@ def test_alpha_graph_appends_silence_input_when_source_has_no_audio() -> None:
         has_audio=False,
         box_width=320,
         box_height=320,
+        inner_width=320,
+        inner_height=320,
+        padding=0,
         bleed_width=576,
         bleed_height=584,
         inset_left=48,
@@ -175,6 +184,42 @@ def test_video_graph_input_args_and_audio_map() -> None:
     assert plan.audio_map == "1:a?"
 
 
+def test_alpha_graph_pads_inner_crop_when_padding_set() -> None:
+    plan = build_alpha_graph(
+        talking_head_input="head.mp4",
+        backdrop_input="bd.png",
+        mask_input="mask.png",
+        frame_input="frame.png",
+        trim_start_s=0.0,
+        duration_s=2.5,
+        has_audio=True,
+        box_width=320,
+        box_height=320,
+        inner_width=280,
+        inner_height=280,
+        padding=20,
+        bleed_width=576,
+        bleed_height=584,
+        inset_left=48,
+        inset_top=48,
+        focal_x=0.5,
+        focal_y=0.5,
+        fade_frames=12,
+        total_frames=75,
+    )
+    assert "scale=280:280" in plan.filter_complex
+    assert "pad=320:320:20:20:color=0x00000000" in plan.filter_complex
+    assert list(plan.steps) == [
+        "fps",
+        "focal_crop",
+        "padding_pad",
+        "bleed_pad",
+        "alphamerge",
+        "composite",
+        "alpha_fade",
+    ]
+
+
 def test_alpha_fade_is_clamped_so_in_and_out_cannot_overlap() -> None:
     plan = build_alpha_graph(
         talking_head_input="head.mp4",
@@ -186,6 +231,9 @@ def test_alpha_fade_is_clamped_so_in_and_out_cannot_overlap() -> None:
         has_audio=True,
         box_width=320,
         box_height=320,
+        inner_width=320,
+        inner_height=320,
+        padding=0,
         bleed_width=576,
         bleed_height=584,
         inset_left=48,

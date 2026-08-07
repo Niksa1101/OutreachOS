@@ -8,12 +8,12 @@ Pausing lets the in-flight job finish and stops the next one starting. Cancellin
 
 **Blocked by:** 15 — Worker pool, job enqueue, and the first render from the UI.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Pause stops the next job from starting; the in-flight job finishes rather than being killed
-- [ ] Resume continues from where the queue stopped
-- [ ] Cancelling a running job terminates the render process and deletes its partial output
-- [ ] `Cancel Queue` clears a campaign's waiting and active jobs and leaves no job in a state that would still read as busy
-- [ ] Retry re-runs a single job and resets its state cleanly
-- [ ] Rows reorder by drag; the actively-encoding job is pinned and cannot be moved or displaced
-- [ ] Reordering persists and the worker respects the new order
+- [x] Pause stops the next job from starting; the in-flight job finishes rather than being killed
+- [x] Resume continues from where the queue stopped
+- [x] Cancelling a running job terminates the render process and deletes its partial output
+- [x] `Cancel Queue` clears a campaign's waiting and active jobs and leaves no job in a state that would still read as busy
+- [x] Retry re-runs a single job and resets its state cleanly
+- [x] Rows reorder by drag; the actively-encoding job is pinned and cannot be moved or displaced
+- [x] Reordering persists and the worker respects the new order

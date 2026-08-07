@@ -6,7 +6,7 @@ The copy gets its own name (the original's, disambiguated) and does **not** inhe
 
 **Blocked by:** 05 — Recordings table with inline editing.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Duplicating copies talking head reference, trim, focal point, overlay config, overlay schema version, and campaign settings
 - [ ] The duplicate has no screen recordings

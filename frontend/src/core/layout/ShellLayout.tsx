@@ -15,6 +15,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/core/components
 import { TooltipProvider } from '@/core/components/ui/tooltip';
 import { useBootModel } from '@/core/boot/bootStore';
 import { AppSidebar } from '@/core/layout/AppSidebar';
+import { CloseDuringRenderGuard } from '@/core/layout/CloseDuringRenderGuard';
 import { ConnectionBadge } from '@/core/layout/ConnectionBadge';
 import { EventStreamProvider } from '@/core/sse/EventStreamProvider';
 
@@ -31,6 +32,7 @@ export function ShellLayout() {
           Radix has `asChild`. */}
       <TooltipProvider delay={300}>
         <SidebarProvider>
+          <CloseDuringRenderGuard />
           <AppSidebar />
           <SidebarInset>
             <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">

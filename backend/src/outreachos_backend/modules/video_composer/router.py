@@ -7,21 +7,40 @@ from sqlalchemy.orm import Session
 
 from outreachos_backend.core.db import get_session
 from outreachos_backend.modules.video_composer import service
-from outreachos_backend.modules.video_composer.deps import BinariesDep, WorkspaceDep
+from outreachos_backend.modules.video_composer.deps import (
+    BinariesDep,
+    EventBusDep,
+    WorkerPoolDep,
+    WorkspaceDep,
+)
 from outreachos_backend.modules.video_composer.schemas import (
+    ApplyPresetRequest,
     AssetRelocateRequest,
     CampaignCreateRequest,
     CampaignDeletePreview,
     CampaignDetail,
     CampaignListResponse,
     CampaignUpdateRequest,
+    GeneratePlanResponse,
+    GenerateVideosRequest,
+    GenerateVideosResponse,
+    OverlayPresetCreateRequest,
+    OverlayPresetDetail,
+    OverlayPresetListResponse,
+    OverlayPresetRenameRequest,
+    OverlayPresetSummary,
     PreviewFrameResponse,
     RecordingDetail,
     RecordingImportRequest,
     RecordingImportResponse,
     RecordingUpdateRequest,
+    RenderQueueResponse,
+    ReorderRenderQueueRequest,
+    RetryFailedResponse,
     TalkingHeadAssignRequest,
+    TalkingHeadTrimRequest,
 )
+from outreachos_backend.rendering.config import OverlayConfig
 
 router = APIRouter(tags=["video-composer"])
 router.redirect_slashes = False
@@ -76,6 +95,19 @@ def rename_campaign(
 
 
 @router.put(
+    "/campaigns/{campaign_id}/overlay",
+    summary="Replace the campaign's overlay geometry and styling",
+)
+def update_overlay_config(
+    campaign_id: str,
+    body: OverlayConfig,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+) -> CampaignDetail:
+    return service.update_overlay_config(session, workspace, campaign_id, body)
+
+
+@router.put(
     "/campaigns/{campaign_id}/talking-head",
     summary="Assign or replace the campaign talking head",
 )
@@ -92,6 +124,27 @@ def assign_talking_head(
         workspace,
         campaign_id,
         source_path=body.source_path,
+    )
+
+
+@router.put(
+    "/campaigns/{campaign_id}/talking-head/trim",
+    summary="Update the talking head's trim window and focal point",
+)
+def update_talking_head_trim(
+    campaign_id: str,
+    body: TalkingHeadTrimRequest,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+) -> CampaignDetail:
+    return service.update_talking_head_trim(
+        session,
+        workspace,
+        campaign_id,
+        trim_start_ms=body.trim_start_ms,
+        trim_end_ms=body.trim_end_ms,
+        focal_x=body.focal_x,
+        focal_y=body.focal_y,
     )
 
 
@@ -202,3 +255,189 @@ def delete_campaign(
     workspace: WorkspaceDep,
 ) -> None:
     service.delete_campaign(session, workspace, campaign_id)
+
+
+@router.post(
+    "/campaigns/{campaign_id}/apply-preset",
+    summary="Copy a preset's overlay config onto a campaign",
+)
+def apply_preset(
+    campaign_id: str,
+    body: ApplyPresetRequest,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+) -> CampaignDetail:
+    return service.apply_preset_to_campaign(session, workspace, campaign_id, body.preset_id)
+
+
+@router.post(
+    "/campaigns/{campaign_id}/cancel-queue",
+    summary="Clear a campaign's queued/active render jobs and unlock its editor",
+)
+def cancel_queue(
+    campaign_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    event_bus: EventBusDep,
+    workspace: WorkspaceDep,
+) -> CampaignDetail:
+    return service.cancel_queue(session, event_bus, workspace, campaign_id)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/generate-plan",
+    summary="Preview how many recordings Generate would render vs skip",
+)
+def get_generate_plan(
+    campaign_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+) -> GeneratePlanResponse:
+    return service.get_generate_plan(session, workspace, campaign_id)
+
+
+@router.post(
+    "/campaigns/{campaign_id}/generate",
+    status_code=status.HTTP_201_CREATED,
+    summary="Enqueue render jobs for recordings that still need rendering",
+)
+def generate_videos(
+    campaign_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+    worker_pool: WorkerPoolDep,
+    event_bus: EventBusDep,
+    body: GenerateVideosRequest | None = None,
+) -> GenerateVideosResponse:
+    force = body.force if body is not None else False
+    return service.generate_videos(
+        session,
+        workspace,
+        campaign_id,
+        force=force,
+        worker_pool=worker_pool,
+        event_bus=event_bus,
+    )
+
+
+@router.get("/render-queue", summary="List every render job, across all campaigns, in queue order")
+def list_render_queue(
+    session: Annotated[Session, Depends(get_session)],
+    worker_pool: WorkerPoolDep,
+) -> RenderQueueResponse:
+    return service.list_render_queue(session, worker_pool=worker_pool)
+
+
+@router.post(
+    "/render-queue/pause",
+    summary="Pause the queue: finish the in-flight job, do not start the next",
+)
+def pause_render_queue(
+    session: Annotated[Session, Depends(get_session)],
+    worker_pool: WorkerPoolDep,
+) -> RenderQueueResponse:
+    return service.pause_render_queue(session, worker_pool=worker_pool)
+
+
+@router.post(
+    "/render-queue/resume",
+    summary="Resume a paused render queue after crash recovery or a user pause",
+)
+def resume_render_queue(
+    session: Annotated[Session, Depends(get_session)],
+    worker_pool: WorkerPoolDep,
+) -> RenderQueueResponse:
+    return service.resume_render_queue(session, worker_pool=worker_pool)
+
+
+@router.put(
+    "/render-queue/reorder",
+    summary="Reorder waiting jobs; the actively encoding job stays pinned",
+)
+def reorder_render_queue(
+    body: ReorderRenderQueueRequest,
+    session: Annotated[Session, Depends(get_session)],
+    event_bus: EventBusDep,
+    worker_pool: WorkerPoolDep,
+) -> RenderQueueResponse:
+    return service.reorder_render_queue(session, event_bus, body.job_ids, worker_pool=worker_pool)
+
+
+@router.post(
+    "/render-queue/jobs/{job_id}/cancel",
+    summary="Cancel one queued or active job, killing it if it is running",
+)
+def cancel_render_job(
+    job_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+    event_bus: EventBusDep,
+    worker_pool: WorkerPoolDep,
+) -> RenderQueueResponse:
+    return service.cancel_render_job(session, workspace, event_bus, job_id, worker_pool=worker_pool)
+
+
+@router.post(
+    "/render-queue/jobs/{job_id}/retry",
+    summary="Re-run a single failed job from a clean waiting state",
+)
+def retry_render_job(
+    job_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+    event_bus: EventBusDep,
+    worker_pool: WorkerPoolDep,
+) -> RenderQueueResponse:
+    return service.retry_render_job(session, workspace, event_bus, job_id, worker_pool=worker_pool)
+
+
+@router.post(
+    "/render-queue/retry-failed",
+    summary="Re-enqueue every failed job and leave completed jobs alone",
+)
+def retry_failed_jobs(
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+    event_bus: EventBusDep,
+    worker_pool: WorkerPoolDep,
+) -> RetryFailedResponse:
+    return service.retry_failed_jobs(session, workspace, event_bus, worker_pool=worker_pool)
+
+
+@router.get("/overlay-presets", summary="List overlay presets")
+def list_presets(
+    session: Annotated[Session, Depends(get_session)],
+) -> OverlayPresetListResponse:
+    return OverlayPresetListResponse(presets=service.list_presets(session))
+
+
+@router.post(
+    "/overlay-presets",
+    status_code=status.HTTP_201_CREATED,
+    summary="Save the current overlay config as a named preset",
+)
+def create_preset(
+    body: OverlayPresetCreateRequest,
+    session: Annotated[Session, Depends(get_session)],
+) -> OverlayPresetDetail:
+    return service.create_preset(session, name=body.name, overlay=body.overlay)
+
+
+@router.patch("/overlay-presets/{preset_id}", summary="Rename a preset")
+def rename_preset(
+    preset_id: str,
+    body: OverlayPresetRenameRequest,
+    session: Annotated[Session, Depends(get_session)],
+) -> OverlayPresetSummary:
+    return service.rename_preset(session, preset_id, body.name)
+
+
+@router.delete(
+    "/overlay-presets/{preset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a preset",
+)
+def delete_preset(
+    preset_id: str,
+    session: Annotated[Session, Depends(get_session)],
+) -> None:
+    service.delete_preset(session, preset_id)

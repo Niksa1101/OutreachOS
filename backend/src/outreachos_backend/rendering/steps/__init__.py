@@ -6,6 +6,7 @@ from outreachos_backend.rendering.steps.bleed_pad import BleedPadStep
 from outreachos_backend.rendering.steps.focal_crop import FocalCropStep
 from outreachos_backend.rendering.steps.fps import FpsStep
 from outreachos_backend.rendering.steps.overlay import OverlayStep
+from outreachos_backend.rendering.steps.padding_pad import PaddingPadStep
 from outreachos_backend.rendering.steps.scale_pad import ScalePadStep
 from outreachos_backend.rendering.steps.tpad import TpadStep
 
@@ -17,6 +18,7 @@ __all__ = [
     "FocalCropStep",
     "FpsStep",
     "OverlayStep",
+    "PaddingPadStep",
     "ScalePadStep",
     "TpadStep",
 ]

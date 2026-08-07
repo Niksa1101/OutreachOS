@@ -22,11 +22,26 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from '@/core/components/ui/sidebar';
+import { useRenderQueueActiveCount } from '@/core/hooks/useRenderQueueActiveCount';
 import { MODULES } from '@/core/registry/modules';
+
+function RenderQueueActiveBadge() {
+  const activeCount = useRenderQueueActiveCount();
+  if (activeCount <= 0) {
+    return null;
+  }
+
+  return (
+    <SidebarMenuBadge className="bg-primary text-primary-foreground">
+      {activeCount > 99 ? '99+' : activeCount}
+    </SidebarMenuBadge>
+  );
+}
 
 export function AppSidebar() {
   // `useRouterState` rather than `useMatchRoute`: the active check is a plain
@@ -66,6 +81,7 @@ export function AppSidebar() {
                       <item.icon />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
+                    {item.badge === 'render-queue-active' ? <RenderQueueActiveBadge /> : null}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

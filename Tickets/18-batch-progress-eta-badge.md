@@ -6,10 +6,10 @@ Alongside per-job percentage, the queue shows batch-level progress and an estima
 
 **Blocked by:** 15 — Worker pool, job enqueue, and the first render from the UI.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Batch progress reflects completed, active, and remaining jobs across the whole queue
-- [ ] An ETA is shown and derived from measured throughput, not from a fixed per-job guess
-- [ ] The ETA degrades gracefully early in a batch when there is not yet enough data, rather than showing a wild number
-- [ ] The sidebar badge shows active queue state live and disappears when the queue is idle
-- [ ] Progress and badge updates arrive over the existing event stream with no polling
+- [x] Batch progress reflects completed, active, and remaining jobs across the whole queue
+- [x] An ETA is shown and derived from measured throughput, not from a fixed per-job guess
+- [x] The ETA degrades gracefully early in a batch when there is not yet enough data, rather than showing a wild number
+- [x] The sidebar badge shows active queue state live and disappears when the queue is idle
+- [x] Progress and badge updates arrive over the existing event stream with no polling

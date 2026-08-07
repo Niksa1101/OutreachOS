@@ -32,6 +32,7 @@ import uuid
 from pathlib import Path
 
 import uvicorn
+from sqlalchemy.orm import Session
 
 from outreachos_backend.core import control, devtoken, lock, migrate
 from outreachos_backend.core.app import create_app
@@ -41,6 +42,10 @@ from outreachos_backend.core.db import Database
 from outreachos_backend.core.events import EventBus
 from outreachos_backend.core.logging import configure_logging
 from outreachos_backend.core.workspace import WorkspaceLayout, prepare_workspace
+from outreachos_backend.modules.video_composer import render_worker, service
+from outreachos_backend.rendering.binaries import resolve_binaries
+from outreachos_backend.rendering.process import register_shutdown_hook
+from outreachos_backend.rendering.queue.pool import WorkerPool
 
 log = logging.getLogger(__name__)
 
@@ -199,9 +204,40 @@ def _serve(
         dev=config.dev,
         ffmpeg_dir=config.ffmpeg_dir,
     )
-    app.state.database = _open_database(
-        layout, report, allow_without_backup=config.allow_without_backup
-    )
+    database = _open_database(layout, report, allow_without_backup=config.allow_without_backup)
+    app.state.database = database
+
+    worker_pool: WorkerPool[str, Session] | None = None
+    if report.status == "ok":
+        with database.session_factory() as session:
+            reset_count = service.reset_interrupted_jobs(session, layout)
+        if reset_count:
+            log.info(
+                "reset %d interrupted render job(s) left over from a previous session", reset_count
+            )
+
+        try:
+            binaries = resolve_binaries(config.ffmpeg_dir)
+        except Exception:
+            # /campaigns/generate still 500s cleanly through get_binaries if a
+            # request reaches it; there is simply nothing for a worker to run.
+            log.warning("FFmpeg is not available; the render worker will not start", exc_info=True)
+        else:
+            worker_pool = WorkerPool(
+                session_factory=database.session_factory,
+                claim_next=render_worker.claim_next_job,
+                run_job=render_worker.build_run_job(
+                    binaries=binaries, workspace=layout, event_bus=bus
+                ),
+                concurrency=1,
+                name="render-worker",
+            )
+            # Ticket 22: after a crash, do not silently restart the batch —
+            # pause first (before start) so the Resume prompt owns the next step.
+            if reset_count:
+                worker_pool.pause(show_resume_prompt=True)
+            worker_pool.start()
+    app.state.worker_pool = worker_pool
 
     sock = _bind(config.port)
     port = int(sock.getsockname()[1])
@@ -234,7 +270,10 @@ def _serve(
             target=_watch_stdin_for_eof, args=(eof,), name="stdin-eof", daemon=True
         ).start()
         threading.Thread(
-            target=_shutdown_on_eof, args=(eof, bus, server), name="shutdown", daemon=True
+            target=_shutdown_on_eof,
+            args=(eof, bus, server, worker_pool),
+            name="shutdown",
+            daemon=True,
         ).start()
     else:
         log.warning(
@@ -247,9 +286,21 @@ def _serve(
     return 0
 
 
-def _shutdown_on_eof(eof: threading.Event, bus: EventBus, server: uvicorn.Server) -> None:
+def _shutdown_on_eof(
+    eof: threading.Event,
+    bus: EventBus,
+    server: uvicorn.Server,
+    worker_pool: WorkerPool[str, Session] | None,
+) -> None:
     eof.wait()
     log.info("stdin closed; shutting down")
+
+    if worker_pool is not None:
+        # Stop pulling new work first so shutdown doesn't race a job starting.
+        # A short join: this must not block Q118's ordering below for as long
+        # as an in-flight FFmpeg encode might run. Any process still live when
+        # this exits is killed by `register_shutdown_hook`'s atexit handler.
+        worker_pool.stop(join_timeout_s=0.5)
 
     # Q118, and the order matters. Releasing the SSE streams first is what lets
     # uvicorn's graceful shutdown actually complete.
@@ -258,6 +309,7 @@ def _shutdown_on_eof(eof: threading.Event, bus: EventBus, server: uvicorn.Server
 
 
 def main() -> int:
+    register_shutdown_hook()
     config = parse_launch_config()
     handshake = read_handshake()
 

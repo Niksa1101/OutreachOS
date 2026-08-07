@@ -10,7 +10,7 @@ The specification places this in the overlay-editor phase, but it cannot be buil
 
 **Blocked by:** 12 — Full overlay property set; 13 — Talking Head Editor; 19 — Queue controls: pause, resume, cancel, retry, reorder.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] A campaign with any job in a queued or active state reports itself as locked
 - [ ] Overlay settings, trim, and focal point render read-only, and preset application is disabled

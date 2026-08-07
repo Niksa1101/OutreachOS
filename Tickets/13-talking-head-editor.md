@@ -6,7 +6,7 @@ The trim determines the output duration for the whole campaign, so the resolved 
 
 **Blocked by:** 09 — Split-view campaign layout with live preview background; 03 — Talking-head assignment with probe on add.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] A player scrubs the talking head using the local-media transport established in ticket 09, with in/out handles on a trim timeline
 - [ ] The resolved output duration after trim is displayed and updates live

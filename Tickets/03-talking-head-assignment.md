@@ -8,7 +8,7 @@ Files that cannot be read, or that are not video, are rejected at add time with 
 
 **Blocked by:** 01 — Campaign CRUD end-to-end.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Picking a talking head stores an absolute path reference; no file is copied
 - [ ] The existing probe service from the render engine is reused, not reimplemented

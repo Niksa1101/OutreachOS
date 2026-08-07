@@ -10,7 +10,7 @@ Probing runs in parallel across the dropped batch. Individual files that fail to
 
 **Blocked by:** 03 — Talking-head assignment with probe on add.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Dropping 30 files yields 30 correctly named rows with metadata in a few seconds, with probing genuinely parallel
 - [ ] Filename cleanup handles extensions, separators, timestamps, and common noise words, and title-cases the result

@@ -13,7 +13,13 @@
  */
 
 /** Must match `EVENT_NAMES` in `core/events.py`. */
-export const SERVER_EVENT_NAMES = ['heartbeat', 'resync'] as const;
+export const SERVER_EVENT_NAMES = [
+  'heartbeat',
+  'resync',
+  'campaign_lock_changed',
+  'render_job_changed',
+  'batch_progress_changed',
+] as const;
 
 export type ServerEventName = (typeof SERVER_EVENT_NAMES)[number];
 
@@ -52,6 +58,65 @@ export interface ResyncEvent extends ServerEventEnvelope {
 }
 
 /**
+ * Ticket 21: a campaign's editor lock state changed — a job started/finished
+ * queuing against it, or `Cancel Queue` cleared it. `locked` is carried so a
+ * listener that only cares about one campaign can skip the refetch entirely.
+ */
+export interface CampaignLockChangedEvent extends ServerEventEnvelope {
+  campaign_id: string;
+  locked: boolean;
+}
+
+/** Mirrors `RenderJobSummary` in `modules/video_composer/schemas.py`. */
+export interface RenderJobPayload {
+  id: string;
+  campaign_id: string;
+  campaign_name: string;
+  asset_id: string | null;
+  job_type: string;
+  status: string;
+  queue_position: number;
+  progress_pct: number;
+  depends_on_job_id: string | null;
+  output_filename: string | null;
+  error_message: string | null;
+  error_details: string | null;
+  ffmpeg_command: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+/**
+ * Ticket 15: a render job's status or progress changed. Carries the full job
+ * row (see `EventBus.render_job_changed`'s docstring for why) so a listener
+ * can patch the queue cache directly instead of refetching on every tick.
+ */
+export interface RenderJobChangedEvent extends ServerEventEnvelope {
+  job: RenderJobPayload;
+}
+
+/** Mirrors `BatchProgress` in `modules/video_composer/schemas.py`. */
+export interface BatchProgressPayload {
+  total: number;
+  completed: number;
+  failed: number;
+  active: number;
+  waiting: number;
+  active_job_count: number;
+  progress_pct: number;
+  eta_seconds: number | null;
+}
+
+/**
+ * Ticket 18: the queue-wide rollup changed. Carries the full batch snapshot so
+ * the sidebar badge and queue header can update without polling.
+ */
+export interface BatchProgressChangedEvent extends ServerEventEnvelope {
+  batch: BatchProgressPayload;
+}
+
+/**
  * A received event, discriminated by `name`.
  *
  * A union rather than a `{ name, payload }` pair over a generic map: only a
@@ -59,7 +124,11 @@ export interface ResyncEvent extends ServerEventEnvelope {
  * read its own payload will eventually cast to the wrong member.
  */
 export type ServerEvent =
-  { name: 'heartbeat'; payload: HeartbeatEvent } | { name: 'resync'; payload: ResyncEvent };
+  | { name: 'heartbeat'; payload: HeartbeatEvent }
+  | { name: 'resync'; payload: ResyncEvent }
+  | { name: 'campaign_lock_changed'; payload: CampaignLockChangedEvent }
+  | { name: 'render_job_changed'; payload: RenderJobChangedEvent }
+  | { name: 'batch_progress_changed'; payload: BatchProgressChangedEvent };
 
 export function isServerEventName(value: string): value is ServerEventName {
   return (SERVER_EVENT_NAMES as readonly string[]).includes(value);

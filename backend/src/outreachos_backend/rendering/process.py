@@ -17,9 +17,13 @@ from outreachos_backend.rendering.errors import RenderFatalError, RenderProcessE
 
 __all__ = [
     "FfmpegProcess",
+    "clear_cancel",
     "creation_flags",
+    "is_cancelled",
     "kill_all",
+    "kill_job",
     "register_shutdown_hook",
+    "request_cancel",
     "run_tool",
 ]
 
@@ -66,8 +70,41 @@ def run_tool(command: list[str], *, timeout_s: float = 120.0) -> str:
 
 
 _live: list[subprocess.Popen[str]] = []
+_by_job: dict[str, subprocess.Popen[str]] = {}
+_cancelled: set[str] = set()
 _live_lock = threading.Lock()
 _shutdown_registered = False
+
+
+def request_cancel(job_id: str) -> None:
+    """Mark ``job_id`` cancelled and kill its live FFmpeg process, if any."""
+    with _live_lock:
+        _cancelled.add(job_id)
+        proc = _by_job.get(job_id)
+    if proc is not None:
+        with contextlib.suppress(OSError):
+            proc.kill()
+
+
+def is_cancelled(job_id: str) -> bool:
+    with _live_lock:
+        return job_id in _cancelled
+
+
+def clear_cancel(job_id: str) -> None:
+    with _live_lock:
+        _cancelled.discard(job_id)
+
+
+def kill_job(job_id: str) -> bool:
+    """Kill the live process for ``job_id``. Returns whether one was found."""
+    with _live_lock:
+        proc = _by_job.get(job_id)
+    if proc is None:
+        return False
+    with contextlib.suppress(OSError):
+        proc.kill()
+    return True
 
 
 @dataclass
@@ -83,6 +120,7 @@ class FfmpegProcess:
         *,
         stall_timeout_s: float = 120.0,
         on_progress_line: ProgressCallback | None = None,
+        job_id: str | None = None,
     ) -> None:
         creationflags = creation_flags()
 
@@ -99,6 +137,8 @@ class FfmpegProcess:
         self._proc = proc
         with _live_lock:
             _live.append(proc)
+            if job_id is not None:
+                _by_job[job_id] = proc
 
         stdout_chunks: list[str] = []
         stderr_chunks: list[str] = []
@@ -137,6 +177,8 @@ class FfmpegProcess:
             with _live_lock:
                 if proc in _live:
                     _live.remove(proc)
+                if job_id is not None and _by_job.get(job_id) is proc:
+                    del _by_job[job_id]
 
         self.stdout = "".join(stdout_chunks)
         self.stderr = "".join(stderr_chunks)
@@ -156,6 +198,7 @@ def kill_all() -> None:
             with contextlib.suppress(OSError):
                 proc.kill()
         _live.clear()
+        _by_job.clear()
 
 
 def register_shutdown_hook() -> None:

@@ -12,7 +12,7 @@ from outreachos_backend.core.db import Database
 from outreachos_backend.core.enums import AssetRole, ProbeStatus
 from outreachos_backend.core.workspace import WorkspaceLayout
 from outreachos_backend.modules.video_composer.models import Campaign, MediaAsset, RenderJob
-from outreachos_backend.rendering.config import OverlayConfig
+from outreachos_backend.rendering.config import OverlayConfig, SizeConfig
 from outreachos_backend.rendering.process import run_tool
 from tests.conftest import TEST_TOKEN
 
@@ -142,6 +142,60 @@ async def test_rename_updates_the_campaign(app_with_database: FastAPI) -> None:
 async def test_rename_404s_for_an_unknown_id(app_with_database: FastAPI) -> None:
     async with await client_for(app_with_database) as client:
         response = await client.patch("/campaigns/does-not-exist", json={"name": "Nope"})
+
+    assert response.status_code == 404
+
+
+async def test_update_overlay_persists_the_config(app_with_database: FastAPI) -> None:
+    overlay = OverlayConfig(anchor="top_left", size=SizeConfig(width=300, height=300))
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={})).json()
+        response = await client.put(
+            f"/campaigns/{created['id']}/overlay",
+            json=overlay.model_dump(mode="json"),
+        )
+        body = response.json()
+
+    assert response.status_code == 200
+    stored = OverlayConfig.model_validate_json(body["overlay_config"])
+    assert stored.anchor == "top_left"
+    assert stored.size.width == 300
+    assert stored.size.height == 300
+
+    async with await client_for(app_with_database) as client:
+        refetched = (await client.get(f"/campaigns/{created['id']}")).json()
+
+    assert refetched["overlay_config"] == body["overlay_config"]
+
+
+async def test_update_overlay_clamps_off_frame_values_server_side(
+    app_with_database: FastAPI,
+) -> None:
+    overlay = OverlayConfig(anchor="bottom_right", size=SizeConfig(width=5000, height=5000))
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={})).json()
+        body = (
+            await client.put(
+                f"/campaigns/{created['id']}/overlay",
+                json=overlay.model_dump(mode="json"),
+            )
+        ).json()
+
+    stored = OverlayConfig.model_validate_json(body["overlay_config"])
+    assert stored.size.width == 1920
+    assert stored.size.height == 1080
+
+
+async def test_update_overlay_404s_for_an_unknown_id(app_with_database: FastAPI) -> None:
+    overlay = OverlayConfig()
+
+    async with await client_for(app_with_database) as client:
+        response = await client.put(
+            "/campaigns/does-not-exist/overlay",
+            json=overlay.model_dump(mode="json"),
+        )
 
     assert response.status_code == 404
 
@@ -337,6 +391,166 @@ async def test_assign_talking_head_replaces_the_existing_one(
         ).all()
         assert len(heads) == 1
         assert heads[0].source_filename == "second.mp4"
+
+
+async def test_update_talking_head_trim_persists_trim_and_focal_point(
+    app_with_database: FastAPI,
+    ffmpeg_dir: Path,
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "presenter.mp4"
+    _make_video(ffmpeg_dir, video, audio=True)
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Trim"})).json()
+        campaign_id = created["id"]
+        await client.put(
+            f"/campaigns/{campaign_id}/talking-head",
+            json={"source_path": str(video)},
+        )
+        response = await client.put(
+            f"/campaigns/{campaign_id}/talking-head/trim",
+            json={
+                "trim_start_ms": 200,
+                "trim_end_ms": 1800,
+                "focal_x": 0.25,
+                "focal_y": 0.75,
+            },
+        )
+        body = response.json()
+        refetched = (await client.get(f"/campaigns/{campaign_id}")).json()
+
+    assert response.status_code == 200
+    talking_head = body["talking_head"]
+    assert talking_head["trim_start_ms"] == 200
+    assert talking_head["trim_end_ms"] == 1800
+    assert talking_head["focal_x"] == pytest.approx(0.25)
+    assert talking_head["focal_y"] == pytest.approx(0.75)
+    assert refetched["talking_head"]["trim_start_ms"] == 200
+    assert refetched["talking_head"]["trim_end_ms"] == 1800
+    assert refetched["talking_head"]["focal_x"] == pytest.approx(0.25)
+    assert refetched["talking_head"]["focal_y"] == pytest.approx(0.75)
+
+
+async def test_update_talking_head_trim_clamps_server_side(
+    app_with_database: FastAPI,
+    ffmpeg_dir: Path,
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "presenter.mp4"
+    _make_video(ffmpeg_dir, video, audio=True)
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Clamp"})).json()
+        campaign_id = created["id"]
+        await client.put(
+            f"/campaigns/{campaign_id}/talking-head",
+            json={"source_path": str(video)},
+        )
+
+        negative_start_response = await client.put(
+            f"/campaigns/{campaign_id}/talking-head/trim",
+            json={
+                "trim_start_ms": -500,
+                "trim_end_ms": 1000,
+                "focal_x": 0.5,
+                "focal_y": 0.5,
+            },
+        )
+
+        huge_end = (
+            await client.put(
+                f"/campaigns/{campaign_id}/talking-head/trim",
+                json={
+                    "trim_start_ms": 0,
+                    "trim_end_ms": 999_999,
+                    "focal_x": 0.5,
+                    "focal_y": 0.5,
+                },
+            )
+        ).json()["talking_head"]
+
+        inverted = (
+            await client.put(
+                f"/campaigns/{campaign_id}/talking-head/trim",
+                json={
+                    "trim_start_ms": 1800,
+                    "trim_end_ms": 200,
+                    "focal_x": 0.5,
+                    "focal_y": 0.5,
+                },
+            )
+        ).json()["talking_head"]
+
+    assert negative_start_response.status_code == 422
+
+    assert huge_end["trim_start_ms"] == 0
+    assert huge_end["trim_end_ms"] <= 2000
+
+    assert inverted["trim_start_ms"] < inverted["trim_end_ms"]
+    assert inverted["trim_end_ms"] - inverted["trim_start_ms"] >= 1
+
+
+async def test_update_talking_head_trim_invalidates_alpha_cache(
+    app_with_database: FastAPI,
+    ffmpeg_dir: Path,
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "presenter.mp4"
+    _make_video(ffmpeg_dir, video, audio=True)
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Cache"})).json()
+        campaign_id = created["id"]
+        await client.put(
+            f"/campaigns/{campaign_id}/talking-head",
+            json={"source_path": str(video)},
+        )
+
+    database = app_with_database.state.database
+    with database.session_factory() as session:
+        campaign = session.get(Campaign, campaign_id)
+        assert campaign is not None
+        campaign.alpha_cache_key = "deadbeef"
+        campaign.alpha_cache_path = "cache/deadbeef.mov"
+        session.commit()
+
+    async with await client_for(app_with_database) as client:
+        response = await client.put(
+            f"/campaigns/{campaign_id}/talking-head/trim",
+            json={
+                "trim_start_ms": 100,
+                "trim_end_ms": 1900,
+                "focal_x": 0.5,
+                "focal_y": 0.5,
+            },
+        )
+
+    assert response.status_code == 200
+
+    with database.session_factory() as session:
+        campaign = session.get(Campaign, campaign_id)
+        assert campaign is not None
+        assert campaign.alpha_cache_key is None
+        assert campaign.alpha_cache_path is None
+
+
+async def test_update_talking_head_trim_422s_when_no_talking_head_exists(
+    app_with_database: FastAPI,
+) -> None:
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "No head"})).json()
+        response = await client.put(
+            f"/campaigns/{created['id']}/talking-head/trim",
+            json={
+                "trim_start_ms": 0,
+                "trim_end_ms": 1000,
+                "focal_x": 0.5,
+                "focal_y": 0.5,
+            },
+        )
+
+    assert response.status_code == 422
 
 
 async def test_assign_talking_head_rejects_a_missing_file(
@@ -1214,3 +1428,269 @@ async def test_import_rejects_talking_head_path_instead_of_500(
             "message": "That file is already in this campaign.",
         }
     ]
+
+
+# --- Ticket 14: preset library ----------------------------------------------
+
+
+async def test_create_preset_then_list_and_apply(app_with_database: FastAPI) -> None:
+    overlay = OverlayConfig(anchor="top_left", size=SizeConfig(width=300, height=300))
+
+    async with await client_for(app_with_database) as client:
+        campaign = (await client.post("/campaigns", json={})).json()
+        created = await client.post(
+            "/overlay-presets",
+            json={"name": "Corner", "overlay": overlay.model_dump(mode="json")},
+        )
+        listed = (await client.get("/overlay-presets")).json()
+        applied = await client.post(
+            f"/campaigns/{campaign['id']}/apply-preset",
+            json={"preset_id": created.json()["id"]},
+        )
+
+    assert created.status_code == 201
+    assert created.json()["name"] == "Corner"
+    assert listed["presets"][0]["name"] == "Corner"
+
+    assert applied.status_code == 200
+    applied_overlay = OverlayConfig.model_validate_json(applied.json()["overlay_config"])
+    assert applied_overlay.anchor == "top_left"
+
+
+async def test_create_preset_rejects_a_duplicate_name(app_with_database: FastAPI) -> None:
+    overlay = OverlayConfig().model_dump(mode="json")
+
+    async with await client_for(app_with_database) as client:
+        await client.post("/overlay-presets", json={"name": "Dup", "overlay": overlay})
+        response = await client.post("/overlay-presets", json={"name": "Dup", "overlay": overlay})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "conflict"
+
+
+async def test_rename_and_delete_preset(app_with_database: FastAPI) -> None:
+    overlay = OverlayConfig().model_dump(mode="json")
+
+    async with await client_for(app_with_database) as client:
+        created = (
+            await client.post("/overlay-presets", json={"name": "Old name", "overlay": overlay})
+        ).json()
+        renamed = await client.patch(f"/overlay-presets/{created['id']}", json={"name": "New name"})
+        deleted = await client.delete(f"/overlay-presets/{created['id']}")
+        listed = (await client.get("/overlay-presets")).json()
+
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == "New name"
+    assert deleted.status_code == 204
+    assert listed["presets"] == []
+
+
+# --- editor locking (ticket 21) -------------------------------------------
+
+
+def _add_active_job(database: Database, campaign_id: str, *, status: str = "waiting") -> None:
+    with database.session_factory() as session:
+        session.add(
+            RenderJob(
+                campaign_id=campaign_id,
+                job_type="video_render",
+                status=status,
+                queue_position=1,
+            )
+        )
+        session.commit()
+
+
+async def test_campaign_with_no_jobs_is_unlocked(app_with_database: FastAPI) -> None:
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Unlocked"})).json()
+
+    assert created["is_locked"] is False
+    assert created["lock_reason"] is None
+
+
+async def test_campaign_with_a_queued_job_reports_locked(app_with_database: FastAPI) -> None:
+    database = app_with_database.state.database
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        _add_active_job(database, created["id"])
+        body = (await client.get(f"/campaigns/{created['id']}")).json()
+
+    assert body["is_locked"] is True
+    assert body["lock_reason"] == (
+        "Editing is locked while this campaign has queued or active render jobs."
+    )
+
+
+@pytest.mark.parametrize("status", ["waiting", "preparing", "rendering", "encoding"])
+async def test_every_active_status_locks_the_campaign(
+    app_with_database: FastAPI, status: str
+) -> None:
+    database = app_with_database.state.database
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        _add_active_job(database, created["id"], status=status)
+        body = (await client.get(f"/campaigns/{created['id']}")).json()
+
+    assert body["is_locked"] is True
+
+
+@pytest.mark.parametrize("status", ["completed", "failed"])
+async def test_terminal_job_statuses_do_not_lock_the_campaign(
+    app_with_database: FastAPI, status: str
+) -> None:
+    database = app_with_database.state.database
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Not locked"})).json()
+        _add_active_job(database, created["id"], status=status)
+        body = (await client.get(f"/campaigns/{created['id']}")).json()
+
+    assert body["is_locked"] is False
+
+
+async def test_locked_campaign_rejects_overlay_updates(app_with_database: FastAPI) -> None:
+    database = app_with_database.state.database
+    overlay = OverlayConfig().model_dump(mode="json")
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        _add_active_job(database, created["id"])
+        response = await client.put(f"/campaigns/{created['id']}/overlay", json=overlay)
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["error"]["code"] == "conflict"
+    assert body["error"]["message"] == (
+        "Editing is locked while this campaign has queued or active render jobs."
+    )
+
+
+async def test_locked_campaign_rejects_talking_head_trim_updates(
+    app_with_database: FastAPI, ffmpeg_dir: Path, tmp_path: Path
+) -> None:
+    database = app_with_database.state.database
+    video = tmp_path / "presenter.mp4"
+    _make_video(ffmpeg_dir, video, audio=True)
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        campaign_id = created["id"]
+        await client.put(
+            f"/campaigns/{campaign_id}/talking-head",
+            json={"source_path": str(video)},
+        )
+        _add_active_job(database, campaign_id)
+        response = await client.put(
+            f"/campaigns/{campaign_id}/talking-head/trim",
+            json={"trim_start_ms": 0, "trim_end_ms": 500, "focal_x": 0.5, "focal_y": 0.5},
+        )
+
+    assert response.status_code == 409
+
+
+async def test_locked_campaign_rejects_assign_talking_head(
+    app_with_database: FastAPI, ffmpeg_dir: Path, tmp_path: Path
+) -> None:
+    """Finding E2: swapping the talking head mid-queue changes the render as
+    surely as a trim does, so it must be lock-guarded the same way."""
+    database = app_with_database.state.database
+    first = tmp_path / "presenter.mp4"
+    _make_video(ffmpeg_dir, first, audio=True)
+    second = tmp_path / "replacement.mp4"
+    _make_video(ffmpeg_dir, second, audio=True)
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        campaign_id = created["id"]
+        await client.put(
+            f"/campaigns/{campaign_id}/talking-head",
+            json={"source_path": str(first)},
+        )
+        _add_active_job(database, campaign_id)
+        response = await client.put(
+            f"/campaigns/{campaign_id}/talking-head",
+            json={"source_path": str(second)},
+        )
+
+    assert response.status_code == 409
+
+
+async def test_locked_campaign_rejects_apply_preset(app_with_database: FastAPI) -> None:
+    database = app_with_database.state.database
+    overlay = OverlayConfig().model_dump(mode="json")
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        preset = (
+            await client.post("/overlay-presets", json={"name": "P", "overlay": overlay})
+        ).json()
+        _add_active_job(database, created["id"])
+        response = await client.post(
+            f"/campaigns/{created['id']}/apply-preset",
+            json={"preset_id": preset["id"]},
+        )
+
+    assert response.status_code == 409
+
+
+async def test_a_campaigns_lock_does_not_affect_another_campaign(
+    app_with_database: FastAPI,
+) -> None:
+    database = app_with_database.state.database
+    overlay = OverlayConfig().model_dump(mode="json")
+
+    async with await client_for(app_with_database) as client:
+        locked = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        other = (await client.post("/campaigns", json={"name": "Other"})).json()
+        _add_active_job(database, locked["id"])
+
+        other_body = (await client.get(f"/campaigns/{other['id']}")).json()
+        response = await client.put(f"/campaigns/{other['id']}/overlay", json=overlay)
+
+    assert other_body["is_locked"] is False
+    assert response.status_code == 200
+
+
+async def test_cancel_queue_clears_jobs_and_unlocks_editing(app_with_database: FastAPI) -> None:
+    database = app_with_database.state.database
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked"})).json()
+        _add_active_job(database, created["id"])
+        before = (await client.get(f"/campaigns/{created['id']}")).json()
+        response = await client.post(f"/campaigns/{created['id']}/cancel-queue")
+
+    assert before["is_locked"] is True
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_locked"] is False
+    assert body["lock_reason"] is None
+
+    with database.session_factory() as session:
+        remaining = session.scalars(
+            select(RenderJob).where(RenderJob.campaign_id == created["id"])
+        ).all()
+        assert remaining == []
+
+
+async def test_cancel_queue_only_clears_active_jobs_for_that_campaign(
+    app_with_database: FastAPI,
+) -> None:
+    database = app_with_database.state.database
+
+    async with await client_for(app_with_database) as client:
+        target = (await client.post("/campaigns", json={"name": "Target"})).json()
+        other = (await client.post("/campaigns", json={"name": "Other"})).json()
+        _add_active_job(database, target["id"])
+        _add_active_job(database, other["id"])
+        await client.post(f"/campaigns/{target['id']}/cancel-queue")
+        other_body = (await client.get(f"/campaigns/{other['id']}")).json()
+
+    assert other_body["is_locked"] is True
+
+
+async def test_cancel_queue_404s_for_an_unknown_id(app_with_database: FastAPI) -> None:
+    async with await client_for(app_with_database) as client:
+        response = await client.post("/campaigns/does-not-exist/cancel-queue")
+
+    assert response.status_code == 404

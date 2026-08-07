@@ -6,7 +6,7 @@ Rows can be removed. Removing a row deletes only the reference, never the source
 
 **Blocked by:** 04 — Batch screen-recording drop with parallel probe.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] The table shows company name, duration, resolution, and resolved output filename per row
 - [ ] Company name edits inline, saves, and updates the output filename live

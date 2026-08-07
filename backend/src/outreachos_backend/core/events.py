@@ -39,6 +39,14 @@ __all__ = ["ENVELOPE_REQUIRED_KEYS", "EVENT_NAMES", "EventBus", "ServerEvent"]
 
 log = logging.getLogger(__name__)
 
+#: Named constants so publishers do not index into ``EVENT_NAMES`` — inserting
+#: a name must not silently repoint ``campaign_lock_changed`` et al.
+EVENT_HEARTBEAT: Final = "heartbeat"
+EVENT_RESYNC: Final = "resync"
+EVENT_CAMPAIGN_LOCK_CHANGED: Final = "campaign_lock_changed"
+EVENT_RENDER_JOB_CHANGED: Final = "render_job_changed"
+EVENT_BATCH_PROGRESS_CHANGED: Final = "batch_progress_changed"
+
 #: Every event name this backend can emit.
 #:
 #: Q114: ``/events`` is excluded from the OpenAPI schema, so these types are
@@ -47,7 +55,13 @@ log = logging.getLogger(__name__)
 #: deliberately — the set of names and the required envelope keys, not full
 #: payload shapes. Payload-shape parity across two languages is where this gets
 #: fragile and starts wanting a generator.
-EVENT_NAMES: Final = ("heartbeat", "resync")
+EVENT_NAMES: Final = (
+    EVENT_HEARTBEAT,
+    EVENT_RESYNC,
+    EVENT_CAMPAIGN_LOCK_CHANGED,
+    EVENT_RENDER_JOB_CHANGED,
+    EVENT_BATCH_PROGRESS_CHANGED,
+)
 
 #: Keys every event payload carries, whatever its name.
 ENVELOPE_REQUIRED_KEYS: Final = ("boot_id",)
@@ -191,16 +205,54 @@ class EventBus:
 
     def heartbeat(self) -> ServerEvent:
         """A named event with **no id**. See the module docstring."""
-        return ServerEvent(name=EVENT_NAMES[0], data={"boot_id": self._boot_id})
+        return ServerEvent(name=EVENT_HEARTBEAT, data={"boot_id": self._boot_id})
 
     def resync(self) -> ServerEvent:
         """Carries the head id at time of send; never buffered."""
         with self._lock:
             head = self._seq
         return ServerEvent(
-            name=EVENT_NAMES[1],
+            name=EVENT_RESYNC,
             data={"boot_id": self._boot_id, "reason": "replay_unavailable"},
             id=f"{self._boot_id}:{head}",
+        )
+
+    def campaign_lock_changed(self, campaign_id: str, *, locked: bool) -> ServerEvent:
+        """Ticket 21: a campaign's editor lock state changed.
+
+        Unlike ``heartbeat``/``resync`` this carries real application data, so
+        it goes through ``publish`` and is buffered/replayed like any other
+        event rather than constructed inline at the call site.
+        """
+        return self.publish(
+            EVENT_CAMPAIGN_LOCK_CHANGED,
+            {"boot_id": self._boot_id, "campaign_id": campaign_id, "locked": locked},
+        )
+
+    def render_job_changed(self, job: Mapping[str, Any]) -> ServerEvent:
+        """Ticket 15: a render job's status or progress changed.
+
+        Called from the render worker thread — see the class docstring for why
+        ``publish`` is thread-safe. Carries the full job row rather than a
+        delta: the queue view is small (global, not per-campaign) and a full
+        row lets a listener patch its cache directly instead of refetching.
+        """
+        return self.publish(
+            EVENT_RENDER_JOB_CHANGED,
+            {"boot_id": self._boot_id, "job": dict(job)},
+        )
+
+    def batch_progress_changed(self, batch: Mapping[str, Any]) -> ServerEvent:
+        """Ticket 18: the queue-wide rollup (counts, progress, ETA) changed.
+
+        Published alongside ``render_job_changed`` so the sidebar badge and the
+        batch header update from the same stream without polling. Carries the
+        full ``BatchProgress`` snapshot for the same reason job events carry a
+        full row — patch, don't refetch.
+        """
+        return self.publish(
+            EVENT_BATCH_PROGRESS_CHANGED,
+            {"boot_id": self._boot_id, "batch": dict(batch)},
         )
 
     # -- replay ------------------------------------------------------------

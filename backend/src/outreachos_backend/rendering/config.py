@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -82,6 +83,37 @@ class OverlayConfig(BaseModel):
     shadow: ShadowConfig = Field(default_factory=ShadowConfig)
     background: BackgroundConfig = Field(default_factory=BackgroundConfig)
     animation: AnimationConfig = Field(default_factory=AnimationConfig)
+
+
+_OVERLAY_UPGRADERS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    1: lambda raw: raw,
+}
+
+
+def upgrade_overlay_config(raw: dict[str, Any], *, from_version: int) -> OverlayConfig:
+    """Upgrade a persisted overlay config dict to the current schema.
+
+    Ticket 14: presets carry the schema version they were saved under, so an
+    older preset can be brought forward on apply instead of being validated
+    (and rejected, or worse silently misread) against today's shape. Only
+    version 1 exists so far, so this is a no-op passthrough — the dispatch
+    table is what a future version 2 would extend.
+
+    The table dispatches on a single ``from_version`` lookup rather than
+    chaining upgraders (1->2->3->...); once a version 3 exists on top of a
+    version 2, this will need to walk the chain instead of looking up
+    ``from_version`` directly.
+
+    Raises a bare ``ValueError`` on an unknown version rather than
+    ``ApiError`` — `rendering/` must not import the API error module (see the
+    import-boundary test) — so callers across that boundary (e.g.
+    ``service.apply_preset_to_campaign``) must catch and re-raise as an
+    ``ApiError`` themselves.
+    """
+    upgrader = _OVERLAY_UPGRADERS.get(from_version)
+    if upgrader is None:
+        raise ValueError(f"Unknown overlay schema version: {from_version}")
+    return OverlayConfig.model_validate(upgrader(raw))
 
 
 class TalkingHeadConfig(TrimmableSource):

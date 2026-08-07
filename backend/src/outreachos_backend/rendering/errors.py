@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import shlex
+import subprocess
+import sys
+
 __all__ = [
     "WARN_ASPECT_RATIO_NOT_16_9",
     "WARN_RECORDING_SHORTER_THAN_TALKING_HEAD",
@@ -12,6 +16,7 @@ __all__ = [
     "RenderVersionError",
     "RenderWarning",
     "cap_stderr",
+    "format_command",
 ]
 
 WARN_ASPECT_RATIO_NOT_16_9 = "aspect_ratio_not_16_9"
@@ -46,9 +51,9 @@ class RenderProcessError(RenderError):
     ) -> None:
         super().__init__(message)
         self.command = command
-        # Capped here rather than at each call site so ADR-0011's bound holds
-        # however the error is raised or stored.
-        self.stderr = cap_stderr(stderr)
+        # Full stream here — ADR-0011 caps at persistence / CLI print sites so
+        # the rolling log can still receive the uncapped copy (ticket 20).
+        self.stderr = stderr
         self.returncode = returncode
 
 
@@ -73,3 +78,10 @@ def cap_stderr(text: str, *, limit: int = _ERROR_DETAILS_CAP) -> str:
     omitted = len(text) - (_HEAD_TAIL_EACH * 2)
     marker = f"\n… [{omitted} bytes elided] …\n"
     return text[:_HEAD_TAIL_EACH] + marker + text[-_HEAD_TAIL_EACH:]
+
+
+def format_command(command: list[str]) -> str:
+    """Exact argv as a shell-pasteable string (Tech.md §5 / ticket 20)."""
+    if sys.platform == "win32":
+        return subprocess.list2cmdline(command)
+    return shlex.join(command)

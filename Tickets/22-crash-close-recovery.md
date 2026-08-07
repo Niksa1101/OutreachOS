@@ -6,11 +6,11 @@ Closing the window while a render is active asks for confirmation first.
 
 **Blocked by:** 19 — Queue controls: pause, resume, cancel, retry, reorder.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] On startup, jobs left in an interrupted state reset to waiting
-- [ ] Partial output files from interrupted jobs are deleted, leaving no orphaned fragments in the workspace
-- [ ] The queue resumes in a paused state with a Resume prompt rather than silently restarting work
-- [ ] Closing during an active render prompts for confirmation and cancels the close if declined
-- [ ] Killing the app mid-batch and relaunching is verified end to end, with no orphaned partials and no double-rendered outputs
-- [ ] Completed jobs from before the crash are untouched
+- [x] On startup, jobs left in an interrupted state reset to waiting
+- [x] Partial output files from interrupted jobs are deleted, leaving no orphaned fragments in the workspace
+- [x] The queue resumes in a paused state with a Resume prompt rather than silently restarting work
+- [x] Closing during an active render prompts for confirmation and cancels the close if declined
+- [x] Killing the app mid-batch and relaunching is verified end to end, with no orphaned partials and no double-rendered outputs
+- [x] Completed jobs from before the crash are untouched

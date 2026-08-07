@@ -21,6 +21,7 @@ from outreachos_backend.rendering.config import RenderBatchConfig
 from outreachos_backend.rendering.errors import (
     RenderError,
     RenderUsageError,
+    cap_stderr,
 )
 from outreachos_backend.rendering.probe import probe_media
 from outreachos_backend.rendering.process import register_shutdown_hook
@@ -56,10 +57,11 @@ def main(argv: list[str] | None = None) -> int:
     except RenderError as exc:
         print(str(exc), file=sys.stderr)
         # RenderProcessError carries FFmpeg's own diagnostics; the message alone is
-        # rarely enough to act on. Already capped per ADR-0011 at construction.
+        # rarely enough to act on. Cap for the console (ADR-0011); the log file
+        # still gets the full stream from the worker / process logger.
         detail = getattr(exc, "stderr", "")
         if detail:
-            print(detail, file=sys.stderr)
+            print(cap_stderr(detail), file=sys.stderr)
         return 1
 
     return 2

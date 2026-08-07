@@ -72,6 +72,7 @@ def build_alpha_clip(
     layout: CacheLayout,
     *,
     dry_run: bool = False,
+    job_id: str | None = None,
 ) -> AlphaBuildResult:
     talking = config.talking_head
     if not talking.source_path.is_file():
@@ -108,9 +109,14 @@ def build_alpha_clip(
             f"{head_probe.duration_s:.3f}s but trim starts at {trim_start:.3f}s"
         )
     frame_count, d_exact = quantize_duration(duration_s, OUTPUT_FPS)
+    # Ticket 12: the configured duration is applied in full to *each* edge (not
+    # split between them) — `AlphaFadeStep` clamps to `total_frames // 2` to keep
+    # the two fades from overlapping on a clip too short to fit both.
+    # A configured duration of 0 means no fade — `AlphaFadeStep` already
+    # no-ops at `fade_frames <= 0`, so this isn't floored to 1.
     fade_frames = max(
-        1,
-        round(config.overlay.animation.duration_ms / 1000.0 * OUTPUT_FPS / 2),
+        0,
+        round(config.overlay.animation.duration_ms / 1000.0 * OUTPUT_FPS),
     )
 
     graph = build_alpha_graph(
@@ -123,6 +129,9 @@ def build_alpha_clip(
         has_audio=head_probe.has_audio,
         box_width=assets.geometry.box_width,
         box_height=assets.geometry.box_height,
+        inner_width=assets.geometry.inner_width,
+        inner_height=assets.geometry.inner_height,
+        padding=assets.geometry.padding,
         bleed_width=assets.geometry.bleed_width,
         bleed_height=assets.geometry.bleed_height,
         inset_left=assets.geometry.bleed_insets.left,
@@ -214,7 +223,7 @@ def build_alpha_clip(
 
     proc = FfmpegProcess(command)
     try:
-        proc.run()
+        proc.run(job_id=job_id)
         # Validate before the rename, never after. `is_alpha_cache_hit` accepts any
         # clip that probes, so a short clip committed here would be silently reused
         # on every later run — the first run fails loudly, the rest render at the

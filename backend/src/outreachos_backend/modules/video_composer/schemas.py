@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from outreachos_backend.rendering.config import OverlayConfig
+
 
 class CampaignStatus(StrEnum):
     """Backend-computed campaign status.
@@ -107,6 +109,17 @@ class CampaignDetail(CampaignSummary):
         description="Screen recordings in sort order.",
     )
     validation: CampaignValidation
+    is_locked: bool = Field(
+        description=(
+            "True while this campaign has any queued or active render job "
+            "(DB.md §6's editor lock check). Overlay config, talking-head "
+            "trim/focal point, and preset application are read-only while locked."
+        )
+    )
+    lock_reason: str | None = Field(
+        default=None,
+        description="Plain-language explanation, set whenever is_locked is true.",
+    )
     created_at: str
     updated_at: str
 
@@ -132,6 +145,13 @@ class TalkingHeadAssignRequest(BaseModel):
         min_length=1,
         description="Absolute path to a video file on disk. The file is probed but never copied.",
     )
+
+
+class TalkingHeadTrimRequest(BaseModel):
+    trim_start_ms: int = Field(ge=0, description="Trim in-point, milliseconds from source start.")
+    trim_end_ms: int = Field(gt=0, description="Trim out-point, milliseconds from source start.")
+    focal_x: float = Field(ge=0.0, le=1.0, description="Normalized crop center, DB.md §4.1.")
+    focal_y: float = Field(ge=0.0, le=1.0, description="Normalized crop center, DB.md §4.1.")
 
 
 class AssetRelocateRequest(BaseModel):
@@ -207,3 +227,207 @@ class CampaignDeletePreview(BaseModel):
     talking_head_count: int = Field(description="0 or 1.")
     alpha_clip: CampaignDeleteAlphaClip
     outputs: CampaignDeleteOutputs
+
+
+class OverlayPresetSummary(BaseModel):
+    id: str
+    name: str
+    overlay_schema_version: int
+    created_at: str
+    updated_at: str
+
+
+class OverlayPresetDetail(OverlayPresetSummary):
+    overlay_config: str = Field(description="Overlay JSON, DB.md §4.1.")
+
+
+class OverlayPresetListResponse(BaseModel):
+    presets: list[OverlayPresetSummary]
+
+
+class OverlayPresetCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    overlay: OverlayConfig
+
+
+class OverlayPresetRenameRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+class ApplyPresetRequest(BaseModel):
+    preset_id: str = Field(min_length=1)
+
+
+class RenderJobSummary(BaseModel):
+    """One row of the global Render Queue (ticket 15)."""
+
+    id: str
+    campaign_id: str
+    campaign_name: str
+    asset_id: str | None = None
+    job_type: str
+    status: str
+    queue_position: int
+    progress_pct: float
+    depends_on_job_id: str | None = None
+    output_filename: str | None = None
+    error_message: str | None = Field(
+        default=None, description="Plain-language summary, set only when status is failed."
+    )
+    error_details: str | None = Field(
+        default=None,
+        description=(
+            "Technical detail for a failed job — typically FFmpeg stderr, "
+            "capped per ADR-0011. Shown behind an expandable UI, not by default."
+        ),
+    )
+    ffmpeg_command: str | None = Field(
+        default=None,
+        description="Exact FFmpeg argv as a pasteable shell command, when one ran.",
+    )
+    created_at: str
+    started_at: str | None = None
+    finished_at: str | None = None
+
+
+class RetryFailedResponse(BaseModel):
+    """Ticket 20: result of re-enqueueing every currently failed job."""
+
+    retried_job_count: int = Field(description="Failed jobs reset to waiting by this call.")
+    jobs: list[RenderJobSummary]
+
+
+class BatchProgress(BaseModel):
+    """Queue-wide rollup for the Render Queue header and sidebar badge (ticket 18)."""
+
+    total: int = Field(description="Every job currently in the queue, all campaigns.")
+    completed: int
+    failed: int
+    active: int = Field(description="Jobs in preparing, rendering, or encoding — work in flight.")
+    waiting: int
+    active_job_count: int = Field(
+        description=(
+            "Waiting plus in-flight. The sidebar badge; zero means the queue is idle "
+            "even if completed/failed rows remain."
+        )
+    )
+    progress_pct: float = Field(
+        description=(
+            "Fractional batch progress 0-100, counting completed/failed jobs fully "
+            "and in-flight jobs by their per-job percentage."
+        )
+    )
+    eta_seconds: int | None = Field(
+        default=None,
+        description=(
+            "Estimated seconds remaining from measured video-render throughput. "
+            "Null when fewer than two video renders have finished — the UI shows "
+            "a calm placeholder rather than a wild number."
+        ),
+    )
+
+
+class RenderQueueResponse(BaseModel):
+    jobs: list[RenderJobSummary]
+    batch: BatchProgress
+    paused: bool = Field(
+        default=False,
+        description="True while the worker pool is not claiming new jobs.",
+    )
+    show_resume_prompt: bool = Field(
+        default=False,
+        description=(
+            "True after crash/close recovery paused the queue (ticket 22). "
+            "The UI shows a Resume prompt until the user resumes."
+        ),
+    )
+
+
+class ReorderRenderQueueRequest(BaseModel):
+    """Ticket 19: full new order for every job currently in the queue."""
+
+    job_ids: list[str] = Field(
+        min_length=1,
+        description="Every render-job id exactly once, in the desired queue order.",
+    )
+
+
+class GeneratePlanResponse(BaseModel):
+    """Ticket 17: what Generate / Re-render All would do, before enqueueing."""
+
+    render_count: int = Field(description="Recordings that would be enqueued by a normal Generate.")
+    skip_count: int = Field(
+        description=(
+            "Recordings already current under the campaign's present overlay/"
+            "trim/focal cache key — skipped by Generate, included by Re-render All."
+        )
+    )
+    already_queued_count: int = Field(
+        description=(
+            "Eligible recordings that already have a non-terminal video_render job — "
+            "neither rendered nor skipped; a second Generate must not re-enqueue them."
+        )
+    )
+    total_eligible: int = Field(
+        description=(
+            "Probed-OK, present screen recordings "
+            "(render_count + skip_count + already_queued_count)."
+        )
+    )
+    alpha_cache_warm: bool = Field(
+        description=(
+            "True when the campaign's alpha clip can be reused without an alpha_prepare job."
+        )
+    )
+    all_current: bool = Field(
+        description=(
+            "True when every eligible recording is already current — "
+            "Generate would enqueue nothing."
+        )
+    )
+
+
+class GenerateVideosRequest(BaseModel):
+    force: bool = Field(
+        default=False,
+        description=(
+            "Re-render All: enqueue every eligible recording regardless of "
+            "last-rendered state. When false, skip recordings whose "
+            "last_rendered_cache_key still matches the current campaign cache key."
+        ),
+    )
+
+
+class GenerateVideosResponse(BaseModel):
+    enqueued_job_count: int = Field(
+        description="Jobs created by this call: one alpha_prepare (if the cache "
+        "is cold) plus one video_render per recording that will render."
+    )
+    render_count: int = Field(
+        description="Number of video_render jobs enqueued (excludes alpha_prepare)."
+    )
+    skip_count: int = Field(
+        description=(
+            "Eligible recordings left un-enqueued because they are already "
+            "current. Zero when ``force`` is true."
+        )
+    )
+    already_queued_count: int = Field(
+        description=(
+            "Eligible recordings left un-enqueued because they already have a "
+            "non-terminal video_render job in the queue."
+        )
+    )
+    alpha_cache_warm: bool = Field(
+        description=(
+            "True when the campaign's alpha clip was reused from cache and no "
+            "alpha_prepare row was enqueued — encoding starts immediately."
+        )
+    )
+    all_current: bool = Field(
+        description=(
+            "True when nothing was enqueued because every eligible recording "
+            "is already current and ``force`` was false."
+        )
+    )
+    jobs: list[RenderJobSummary]

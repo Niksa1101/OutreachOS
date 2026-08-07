@@ -265,12 +265,25 @@ def test_every_declared_event_name_is_actually_emitted() -> None:
     # but never sent would make that test pass while the client waited for
     # something that does not exist.
     bus = EventBus(BOOT)
-    emitted = {bus.heartbeat().name, bus.resync().name}
+    emitted = {
+        bus.heartbeat().name,
+        bus.resync().name,
+        bus.campaign_lock_changed("campaign-1", locked=True).name,
+        bus.render_job_changed({"id": "job-1"}).name,
+        bus.batch_progress_changed({"total": 0, "active_job_count": 0}).name,
+    }
     assert emitted == set(EVENT_NAMES)
 
 
 def test_every_event_payload_carries_the_required_envelope_keys() -> None:
     bus = EventBus(BOOT)
-    for event in (bus.heartbeat(), bus.resync()):
+    events = (
+        bus.heartbeat(),
+        bus.resync(),
+        bus.campaign_lock_changed("campaign-1", locked=True),
+        bus.render_job_changed({"id": "job-1"}),
+        bus.batch_progress_changed({"total": 0, "active_job_count": 0}),
+    )
+    for event in events:
         for key in ENVELOPE_REQUIRED_KEYS:
             assert key in event.data, f"{event.name} is missing {key}"

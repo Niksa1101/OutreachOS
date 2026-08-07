@@ -6,7 +6,7 @@ Detection runs when a campaign is opened and refreshes the row's link-health sta
 
 **Blocked by:** 05 — Recordings table with inline editing.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Opening a campaign detects missing sources and marks exactly those rows
 - [ ] A missing row shows "File missing" and a Relocate action

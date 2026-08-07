@@ -13,7 +13,7 @@ Rendering never starts automatically. Nothing here runs without the user pressin
 
 **Blocked by:** 07 — Central validation service; 12 — Full overlay property set.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] _Generate Videos_ enqueues one job per eligible recording and returns immediately
 - [ ] A worker pool abstraction with concurrency pinned to 1 pulls and executes jobs; the concurrency value is configuration, not a hardcoded assumption in the loop

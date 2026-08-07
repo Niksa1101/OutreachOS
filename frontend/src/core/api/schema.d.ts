@@ -116,6 +116,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/campaigns/{campaign_id}/overlay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the campaign's overlay geometry and styling */
+        put: operations["update_overlay_config_api_v1_campaigns__campaign_id__overlay_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/campaigns/{campaign_id}/talking-head": {
         parameters: {
             query?: never;
@@ -126,6 +143,23 @@ export interface paths {
         get?: never;
         /** Assign or replace the campaign talking head */
         put: operations["assign_talking_head_api_v1_campaigns__campaign_id__talking_head_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/talking-head/trim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update the talking head's trim window and focal point */
+        put: operations["update_talking_head_trim_api_v1_campaigns__campaign_id__talking_head_trim_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -219,10 +253,252 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/campaigns/{campaign_id}/apply-preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy a preset's overlay config onto a campaign */
+        post: operations["apply_preset_api_v1_campaigns__campaign_id__apply_preset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/cancel-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear a campaign's queued/active render jobs and unlock its editor */
+        post: operations["cancel_queue_api_v1_campaigns__campaign_id__cancel_queue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/generate-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview how many recordings Generate would render vs skip */
+        get: operations["get_generate_plan_api_v1_campaigns__campaign_id__generate_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enqueue render jobs for recordings that still need rendering */
+        post: operations["generate_videos_api_v1_campaigns__campaign_id__generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/render-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every render job, across all campaigns, in queue order */
+        get: operations["list_render_queue_api_v1_render_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/render-queue/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause the queue: finish the in-flight job, do not start the next */
+        post: operations["pause_render_queue_api_v1_render_queue_pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/render-queue/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume a paused render queue after crash recovery or a user pause */
+        post: operations["resume_render_queue_api_v1_render_queue_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/render-queue/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder waiting jobs; the actively encoding job stays pinned */
+        put: operations["reorder_render_queue_api_v1_render_queue_reorder_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/render-queue/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel one queued or active job, killing it if it is running */
+        post: operations["cancel_render_job_api_v1_render_queue_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/render-queue/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-run a single failed job from a clean waiting state */
+        post: operations["retry_render_job_api_v1_render_queue_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/render-queue/retry-failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-enqueue every failed job and leave completed jobs alone */
+        post: operations["retry_failed_jobs_api_v1_render_queue_retry_failed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/overlay-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List overlay presets */
+        get: operations["list_presets_api_v1_overlay_presets_get"];
+        put?: never;
+        /** Save the current overlay config as a named preset */
+        post: operations["create_preset_api_v1_overlay_presets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/overlay-presets/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a preset */
+        delete: operations["delete_preset_api_v1_overlay_presets__preset_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a preset */
+        patch: operations["rename_preset_api_v1_overlay_presets__preset_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnimationConfig */
+        AnimationConfig: {
+            /**
+             * Type
+             * @default fade
+             * @constant
+             */
+            type: "fade";
+            /**
+             * Duration Ms
+             * @default 500
+             */
+            duration_ms: number;
+        };
+        /** ApplyPresetRequest */
+        ApplyPresetRequest: {
+            /** Preset Id */
+            preset_id: string;
+        };
         /** AssetRelocateRequest */
         AssetRelocateRequest: {
             /**
@@ -230,6 +506,74 @@ export interface components {
              * @description Absolute path to the relocated video file on disk.
              */
             source_path: string;
+        };
+        /** BackgroundConfig */
+        BackgroundConfig: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Color
+             * @default #0A0A0A
+             */
+            color: string;
+        };
+        /**
+         * BatchProgress
+         * @description Queue-wide rollup for the Render Queue header and sidebar badge (ticket 18).
+         */
+        BatchProgress: {
+            /**
+             * Total
+             * @description Every job currently in the queue, all campaigns.
+             */
+            total: number;
+            /** Completed */
+            completed: number;
+            /** Failed */
+            failed: number;
+            /**
+             * Active
+             * @description Jobs in preparing, rendering, or encoding — work in flight.
+             */
+            active: number;
+            /** Waiting */
+            waiting: number;
+            /**
+             * Active Job Count
+             * @description Waiting plus in-flight. The sidebar badge; zero means the queue is idle even if completed/failed rows remain.
+             */
+            active_job_count: number;
+            /**
+             * Progress Pct
+             * @description Fractional batch progress 0-100, counting completed/failed jobs fully and in-flight jobs by their per-job percentage.
+             */
+            progress_pct: number;
+            /**
+             * Eta Seconds
+             * @description Estimated seconds remaining from measured video-render throughput. Null when fewer than two video renders have finished — the UI shows a calm placeholder rather than a wild number.
+             */
+            eta_seconds?: number | null;
+        };
+        /** BorderConfig */
+        BorderConfig: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Width
+             * @default 4
+             */
+            width: number;
+            /**
+             * Color
+             * @default #FFFFFF
+             */
+            color: string;
         };
         /** CampaignCreateRequest */
         CampaignCreateRequest: {
@@ -317,6 +661,16 @@ export interface components {
              */
             recordings?: components["schemas"]["RecordingDetail"][];
             validation: components["schemas"]["CampaignValidation"];
+            /**
+             * Is Locked
+             * @description True while this campaign has any queued or active render job (DB.md §6's editor lock check). Overlay config, talking-head trim/focal point, and preset application are read-only while locked.
+             */
+            is_locked: boolean;
+            /**
+             * Lock Reason
+             * @description Plain-language explanation, set whenever is_locked is true.
+             */
+            lock_reason?: string | null;
             /** Created At */
             created_at: string;
             /** Updated At */
@@ -423,6 +777,86 @@ export interface components {
             occurred_at?: string | null;
         };
         /**
+         * GeneratePlanResponse
+         * @description Ticket 17: what Generate / Re-render All would do, before enqueueing.
+         */
+        GeneratePlanResponse: {
+            /**
+             * Render Count
+             * @description Recordings that would be enqueued by a normal Generate.
+             */
+            render_count: number;
+            /**
+             * Skip Count
+             * @description Recordings already current under the campaign's present overlay/trim/focal cache key — skipped by Generate, included by Re-render All.
+             */
+            skip_count: number;
+            /**
+             * Already Queued Count
+             * @description Eligible recordings that already have a non-terminal video_render job — neither rendered nor skipped; a second Generate must not re-enqueue them.
+             */
+            already_queued_count: number;
+            /**
+             * Total Eligible
+             * @description Probed-OK, present screen recordings (render_count + skip_count + already_queued_count).
+             */
+            total_eligible: number;
+            /**
+             * Alpha Cache Warm
+             * @description True when the campaign's alpha clip can be reused without an alpha_prepare job.
+             */
+            alpha_cache_warm: boolean;
+            /**
+             * All Current
+             * @description True when every eligible recording is already current — Generate would enqueue nothing.
+             */
+            all_current: boolean;
+        };
+        /** GenerateVideosRequest */
+        GenerateVideosRequest: {
+            /**
+             * Force
+             * @description Re-render All: enqueue every eligible recording regardless of last-rendered state. When false, skip recordings whose last_rendered_cache_key still matches the current campaign cache key.
+             * @default false
+             */
+            force: boolean;
+        };
+        /** GenerateVideosResponse */
+        GenerateVideosResponse: {
+            /**
+             * Enqueued Job Count
+             * @description Jobs created by this call: one alpha_prepare (if the cache is cold) plus one video_render per recording that will render.
+             */
+            enqueued_job_count: number;
+            /**
+             * Render Count
+             * @description Number of video_render jobs enqueued (excludes alpha_prepare).
+             */
+            render_count: number;
+            /**
+             * Skip Count
+             * @description Eligible recordings left un-enqueued because they are already current. Zero when ``force`` is true.
+             */
+            skip_count: number;
+            /**
+             * Already Queued Count
+             * @description Eligible recordings left un-enqueued because they already have a non-terminal video_render job in the queue.
+             */
+            already_queued_count: number;
+            /**
+             * Alpha Cache Warm
+             * @description True when the campaign's alpha clip was reused from cache and no alpha_prepare row was enqueued — encoding starts immediately.
+             */
+            alpha_cache_warm: boolean;
+            /**
+             * All Current
+             * @description True when nothing was enqueued because every eligible recording is already current and ``force`` was false.
+             */
+            all_current: boolean;
+            /** Jobs */
+            jobs: components["schemas"]["RenderJobSummary"][];
+        };
+        /**
          * HealthResponse
          * @description Everything the diagnostics screen needs from the backend side.
          */
@@ -460,6 +894,101 @@ export interface components {
             diagnostic_code?: ("workspace_locked" | "migration_failed" | "database_newer_than_app") | null;
             /** Started At */
             started_at: string;
+        };
+        /** OffsetConfig */
+        OffsetConfig: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** OverlayConfig */
+        OverlayConfig: {
+            /**
+             * Schema Version
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * Anchor
+             * @default bottom_right
+             * @enum {string}
+             */
+            anchor: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+            size?: components["schemas"]["SizeConfig"];
+            offset?: components["schemas"]["OffsetConfig"];
+            /**
+             * Shape
+             * @default circle
+             * @enum {string}
+             */
+            shape: "circle" | "rounded_rect" | "rect";
+            /**
+             * Border Radius
+             * @default 24
+             */
+            border_radius: number;
+            /**
+             * Opacity
+             * @default 1
+             */
+            opacity: number;
+            /**
+             * Padding
+             * @default 0
+             */
+            padding: number;
+            border?: components["schemas"]["BorderConfig"];
+            shadow?: components["schemas"]["ShadowConfig"];
+            background?: components["schemas"]["BackgroundConfig"];
+            animation?: components["schemas"]["AnimationConfig"];
+        };
+        /** OverlayPresetCreateRequest */
+        OverlayPresetCreateRequest: {
+            /** Name */
+            name: string;
+            overlay: components["schemas"]["OverlayConfig"];
+        };
+        /** OverlayPresetDetail */
+        OverlayPresetDetail: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Overlay Schema Version */
+            overlay_schema_version: number;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /**
+             * Overlay Config
+             * @description Overlay JSON, DB.md §4.1.
+             */
+            overlay_config: string;
+        };
+        /** OverlayPresetListResponse */
+        OverlayPresetListResponse: {
+            /** Presets */
+            presets: components["schemas"]["OverlayPresetSummary"][];
+        };
+        /** OverlayPresetRenameRequest */
+        OverlayPresetRenameRequest: {
+            /** Name */
+            name: string;
+        };
+        /** OverlayPresetSummary */
+        OverlayPresetSummary: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Overlay Schema Version */
+            overlay_schema_version: number;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
         };
         /** PreviewFrameResponse */
         PreviewFrameResponse: {
@@ -571,6 +1100,95 @@ export interface components {
             company_name: string;
         };
         /**
+         * RenderJobSummary
+         * @description One row of the global Render Queue (ticket 15).
+         */
+        RenderJobSummary: {
+            /** Id */
+            id: string;
+            /** Campaign Id */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Job Type */
+            job_type: string;
+            /** Status */
+            status: string;
+            /** Queue Position */
+            queue_position: number;
+            /** Progress Pct */
+            progress_pct: number;
+            /** Depends On Job Id */
+            depends_on_job_id?: string | null;
+            /** Output Filename */
+            output_filename?: string | null;
+            /**
+             * Error Message
+             * @description Plain-language summary, set only when status is failed.
+             */
+            error_message?: string | null;
+            /**
+             * Error Details
+             * @description Technical detail for a failed job — typically FFmpeg stderr, capped per ADR-0011. Shown behind an expandable UI, not by default.
+             */
+            error_details?: string | null;
+            /**
+             * Ffmpeg Command
+             * @description Exact FFmpeg argv as a pasteable shell command, when one ran.
+             */
+            ffmpeg_command?: string | null;
+            /** Created At */
+            created_at: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+        };
+        /** RenderQueueResponse */
+        RenderQueueResponse: {
+            /** Jobs */
+            jobs: components["schemas"]["RenderJobSummary"][];
+            batch: components["schemas"]["BatchProgress"];
+            /**
+             * Paused
+             * @description True while the worker pool is not claiming new jobs.
+             * @default false
+             */
+            paused: boolean;
+            /**
+             * Show Resume Prompt
+             * @description True after crash/close recovery paused the queue (ticket 22). The UI shows a Resume prompt until the user resumes.
+             * @default false
+             */
+            show_resume_prompt: boolean;
+        };
+        /**
+         * ReorderRenderQueueRequest
+         * @description Ticket 19: full new order for every job currently in the queue.
+         */
+        ReorderRenderQueueRequest: {
+            /**
+             * Job Ids
+             * @description Every render-job id exactly once, in the desired queue order.
+             */
+            job_ids: string[];
+        };
+        /**
+         * RetryFailedResponse
+         * @description Ticket 20: result of re-enqueueing every currently failed job.
+         */
+        RetryFailedResponse: {
+            /**
+             * Retried Job Count
+             * @description Failed jobs reset to waiting by this call.
+             */
+            retried_job_count: number;
+            /** Jobs */
+            jobs: components["schemas"]["RenderJobSummary"][];
+        };
+        /**
          * SettingsResponse
          * @description DB.md §3.5, plus the boot facts Settings displays alongside them.
          */
@@ -605,6 +1223,46 @@ export interface components {
             migration_head: string | null;
             /** Backend Log Path */
             backend_log_path: string;
+        };
+        /** ShadowConfig */
+        ShadowConfig: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Blur
+             * @default 32
+             */
+            blur: number;
+            /**
+             * Offset X
+             * @default 0
+             */
+            offset_x: number;
+            /**
+             * Offset Y
+             * @default 8
+             */
+            offset_y: number;
+            /**
+             * Opacity
+             * @default 0.45
+             */
+            opacity: number;
+            /**
+             * Color
+             * @default #000000
+             */
+            color: string;
+        };
+        /** SizeConfig */
+        SizeConfig: {
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
         };
         /** TalkingHeadAssignRequest */
         TalkingHeadAssignRequest: {
@@ -655,6 +1313,29 @@ export interface components {
             /** Focal X */
             focal_x: number;
             /** Focal Y */
+            focal_y: number;
+        };
+        /** TalkingHeadTrimRequest */
+        TalkingHeadTrimRequest: {
+            /**
+             * Trim Start Ms
+             * @description Trim in-point, milliseconds from source start.
+             */
+            trim_start_ms: number;
+            /**
+             * Trim End Ms
+             * @description Trim out-point, milliseconds from source start.
+             */
+            trim_end_ms: number;
+            /**
+             * Focal X
+             * @description Normalized crop center, DB.md §4.1.
+             */
+            focal_x: number;
+            /**
+             * Focal Y
+             * @description Normalized crop center, DB.md §4.1.
+             */
             focal_y: number;
         };
         /** ValidationIssue */
@@ -1179,6 +1860,61 @@ export interface operations {
             };
         };
     };
+    update_overlay_config_api_v1_campaigns__campaign_id__overlay_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverlayConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     assign_talking_head_api_v1_campaigns__campaign_id__talking_head_put: {
         parameters: {
             query?: never;
@@ -1193,6 +1929,61 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["TalkingHeadAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_talking_head_trim_api_v1_campaigns__campaign_id__talking_head_trim_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TalkingHeadTrimRequest"];
             };
         };
         responses: {
@@ -1522,6 +2313,775 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignDeletePreview"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    apply_preset_api_v1_campaigns__campaign_id__apply_preset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyPresetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancel_queue_api_v1_campaigns__campaign_id__cancel_queue_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_generate_plan_api_v1_campaigns__campaign_id__generate_plan_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratePlanResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    generate_videos_api_v1_campaigns__campaign_id__generate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GenerateVideosRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateVideosResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_render_queue_api_v1_render_queue_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderQueueResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    pause_render_queue_api_v1_render_queue_pause_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderQueueResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resume_render_queue_api_v1_render_queue_resume_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderQueueResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reorder_render_queue_api_v1_render_queue_reorder_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderRenderQueueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderQueueResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancel_render_job_api_v1_render_queue_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderQueueResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    retry_render_job_api_v1_render_queue_jobs__job_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderQueueResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    retry_failed_jobs_api_v1_render_queue_retry_failed_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryFailedResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_presets_api_v1_overlay_presets_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverlayPresetListResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_preset_api_v1_overlay_presets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverlayPresetCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverlayPresetDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_preset_api_v1_overlay_presets__preset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rename_preset_api_v1_overlay_presets__preset_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverlayPresetRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverlayPresetSummary"];
                 };
             };
             /** @description Error */

@@ -230,6 +230,64 @@ def test_golden_case(
         _assert_golden(frame, GOLDEN_DIR / f"{case.name}_frame{index}.png", update=update_golden)
 
 
+@dataclass(frozen=True)
+class OverlayShapeCase:
+    name: str
+    overlay_overrides: dict[str, object]
+
+
+OVERLAY_SHAPE_CASES: list[OverlayShapeCase] = [
+    OverlayShapeCase("shape_rounded_rect", {"shape": "rounded_rect", "border_radius": 32}),
+    OverlayShapeCase("shape_rect", {"shape": "rect"}),
+    OverlayShapeCase("shape_circle_padded", {"padding": 24}),
+    # Finding C1: opacity fades only the video mask — border/background/shadow
+    # stay fully opaque. Pins that semantic on the render side.
+    OverlayShapeCase("opacity_faded", {"opacity": 0.6}),
+]
+
+
+@pytest.mark.render
+@pytest.mark.parametrize("case", OVERLAY_SHAPE_CASES, ids=lambda c: c.name)
+def test_overlay_shape_and_padding_golden_frame(
+    case: OverlayShapeCase,
+    ffmpeg_binaries: Binaries,
+    base_config: RenderBatchConfig,
+    render_fixtures: Path,
+    tmp_path: Path,
+    update_golden: bool,
+) -> None:
+    """Ticket 12: preview and rendered output must agree within golden-frame
+    tolerance for all three shapes, plus padding. The default `baseline` case
+    already covers the circle shape at padding=0; this covers the other two
+    shapes and one padded case.
+    """
+    overlay = base_config.overlay.model_copy(update=case.overlay_overrides)
+    config = base_config.model_copy(update={"overlay": overlay})
+
+    layout = CacheLayout(root=tmp_path / "cache")
+    alpha = build_alpha_clip(ffmpeg_binaries, config, layout)
+
+    job = ScreenRecordingJob(
+        source_path=render_fixtures / "screen_1080p.mp4", output_basename=case.name
+    )
+    result = render_one(
+        ffmpeg_binaries,
+        config.model_copy(update={"recordings": [job]}),
+        alpha,
+        job,
+        tmp_path / "out",
+        encoder="libx264",
+        force_libx264=True,
+        deterministic=True,
+    )
+    assert result.ok, result.error
+    assert result.output_path is not None
+
+    frame_png = tmp_path / f"{case.name}.png"
+    _decode_frame(ffmpeg_binaries.ffmpeg, result.output_path, alpha.frame_count // 2, frame_png)
+    _assert_golden(frame_png, GOLDEN_DIR / f"{case.name}_frame.png", update=update_golden)
+
+
 @pytest.mark.render
 def test_overlay_lands_at_the_configured_offset(
     ffmpeg_binaries: Binaries,

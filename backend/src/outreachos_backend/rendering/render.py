@@ -87,6 +87,7 @@ def render_one(
     force_libx264: bool = False,
     deterministic: bool = False,
     on_progress: ProgressCallback | None = None,
+    job_id: str | None = None,
 ) -> JobResult:
     warnings: list[RenderWarning] = []
     source = job.source_path
@@ -202,7 +203,7 @@ def render_one(
 
     proc = FfmpegProcess(command)
     try:
-        proc.run(on_progress_line=progress_line)
+        proc.run(on_progress_line=progress_line, job_id=job_id)
         # Validate the part file, then rename. Committing first would leave a corrupt
         # MP4 at the output path for a job that reports failure.
         _assert_output_frames(binaries, part_path, target_frames)

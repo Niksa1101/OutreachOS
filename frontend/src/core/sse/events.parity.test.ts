@@ -31,7 +31,21 @@ function readPythonTuple(source: string, name: string): string[] {
     );
   }
 
-  return [...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1] as string);
+  const body = match[1];
+  const literals = [...body.matchAll(/"([^"]+)"/g)].map((entry) => entry[1] as string);
+  if (literals.length > 0) {
+    return literals;
+  }
+
+  // Publishers use named Final constants; EVENT_NAMES may list those names.
+  const refs = [...body.matchAll(/\b([A-Z][A-Z0-9_]*)\b/g)].map((entry) => entry[1] as string);
+  return refs.map((ref) => {
+    const constMatch = new RegExp(`^${ref}:\\s*Final\\s*=\\s*"([^"]+)"`, 'm').exec(source);
+    if (!constMatch?.[1]) {
+      throw new Error(`Could not resolve ${ref} referenced by ${name} in events.py.`);
+    }
+    return constMatch[1];
+  });
 }
 
 describe('SSE vocabulary parity with the backend', () => {

@@ -1,5 +1,6 @@
 """P2 remediation — service-level tests that do not require ffmpeg."""
 
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -9,12 +10,14 @@ from sqlalchemy.orm import Session
 from outreachos_backend.core import migrate
 from outreachos_backend.core.db import Database
 from outreachos_backend.core.enums import AssetRole, ProbeStatus
+from outreachos_backend.core.events import EventBus
 from outreachos_backend.core.workspace import WorkspaceLayout
 from outreachos_backend.modules.video_composer.models import Campaign, MediaAsset
 from outreachos_backend.modules.video_composer.service import (
     _existing_campaign_paths,
     _preview_frame_timestamp_ms,
     _probe_source_video_soft,
+    cancel_queue,
     get_preview_frame,
     import_recordings,
     update_recording,
@@ -27,7 +30,7 @@ from outreachos_backend.rendering.binaries import Binaries
 
 
 @pytest.fixture
-def session(tmp_workspace: WorkspaceLayout) -> Session:
+def session(tmp_workspace: WorkspaceLayout) -> Generator[Session, None, None]:
     database = Database(tmp_workspace.database)
     outcome = migrate.run_migrations(database.engine, database.path)
     assert outcome.ok, outcome.detail
@@ -283,3 +286,15 @@ def test_preview_frame_reports_missing_first_recording_file(
     assert response.available is False
     assert response.frame_path is None
     assert response.error == "The first recording's file could not be found."
+
+
+def test_cancel_queue_publishes_lock_changed_event(
+    session: Session, campaign: Campaign, tmp_workspace: WorkspaceLayout
+) -> None:
+    """Finding E6: nothing previously asserted that clearing the queue tells
+    subscribers the editor unlocked."""
+    event_bus = MagicMock(spec=EventBus)
+
+    cancel_queue(session, event_bus, tmp_workspace, campaign.id)
+
+    event_bus.campaign_lock_changed.assert_called_once_with(campaign.id, locked=False)

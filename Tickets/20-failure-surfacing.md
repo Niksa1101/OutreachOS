@@ -6,12 +6,12 @@ Each failed job shows a plain-language summary of what went wrong, with the full
 
 **Blocked by:** 16 — Alpha-prepare as its own pinned queue row.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A mid-batch failure is captured and the batch continues to completion
-- [ ] Full stderr and the exact command are stored on the failed job, respecting the configured detail size cap
-- [ ] The queue row shows a plain-language summary; technical detail is one expansion away, not the default
-- [ ] Failures are written to the workspace rolling log
-- [ ] A batch ends with a completed/failed summary
-- [ ] `Retry failed` re-enqueues only the failed jobs and they can succeed on retry
-- [ ] An injected mid-batch failure is verified end to end: batch continues, error is legible, retry works
+- [x] A mid-batch failure is captured and the batch continues to completion
+- [x] Full stderr and the exact command are stored on the failed job, respecting the configured detail size cap
+- [x] The queue row shows a plain-language summary; technical detail is one expansion away, not the default
+- [x] Failures are written to the workspace rolling log
+- [x] A batch ends with a completed/failed summary
+- [x] `Retry failed` re-enqueues only the failed jobs and they can succeed on retry
+- [x] An injected mid-batch failure is verified end to end: batch continues, error is legible, retry works

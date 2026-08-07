@@ -14,6 +14,7 @@ from outreachos_backend.rendering.steps import (
     FocalCropStep,
     FpsStep,
     OverlayStep,
+    PaddingPadStep,
     ScalePadStep,
     TpadStep,
 )
@@ -114,6 +115,9 @@ def build_alpha_graph(
     has_audio: bool,
     box_width: int,
     box_height: int,
+    inner_width: int,
+    inner_height: int,
+    padding: int,
     bleed_width: int,
     bleed_height: int,
     inset_left: int,
@@ -154,7 +158,8 @@ def build_alpha_graph(
         # overlay pair their inputs through framesync, and pairing streams that are
         # still at their source rate makes the composite depend on arrival order.
         FpsStep(),
-        FocalCropStep(box_width, box_height, focal_x, focal_y),
+        FocalCropStep(inner_width, inner_height, focal_x, focal_y),
+        PaddingPadStep(box_width, box_height, padding),
         BleedPadStep(bleed_width, bleed_height, inset_left, inset_top),
         AlphaMergeStep(f"{mk_idx}:v"),
         AlphaCompositeStep(f"{bd_idx}:v", f"{fr_idx}:v"),

@@ -6,7 +6,7 @@ Confirming removes the campaign row (cascading to its assets), deletes the cache
 
 **Blocked by:** 01 — Campaign CRUD end-to-end.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] The confirmation dialog names campaign data, cached alpha clip, and un-exported outputs as separate line items, not as generic prose
 - [ ] The dialog states that source recordings are never touched

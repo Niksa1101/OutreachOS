@@ -63,8 +63,13 @@ def render_overlay_assets(
     inset_top = geometry.bleed_insets.top * _SUPERSAMPLE
     box_w = geometry.box_width * _SUPERSAMPLE
     box_h = geometry.box_height * _SUPERSAMPLE
+    padding = geometry.padding * _SUPERSAMPLE
+    inner_w = geometry.inner_width * _SUPERSAMPLE
+    inner_h = geometry.inner_height * _SUPERSAMPLE
 
-    _draw_shape_mask(mask_ss, overlay, inset_left, inset_top, box_w, box_h)
+    _draw_shape_mask(
+        mask_ss, overlay, inset_left + padding, inset_top + padding, inner_w, inner_h, padding
+    )
     _draw_backdrop(backdrop_ss, overlay, inset_left, inset_top, box_w, box_h)
     _draw_frame(frame_ss, overlay, inset_left, inset_top, box_w, box_h)
 
@@ -99,12 +104,16 @@ def _draw_shape_mask(
     y: int,
     w: int,
     h: int,
+    padding_ss: int = 0,
 ) -> None:
     layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
     alpha = int(255 * overlay.opacity)
     fill = (255, 255, 255, alpha)
-    _draw_shape(draw, overlay, x, y, w, h, fill)
+    radius_override = None
+    if padding_ss and overlay.shape == "rounded_rect":
+        radius_override = max(0, overlay.border_radius * _SUPERSAMPLE - padding_ss)
+    _draw_shape(draw, overlay, x, y, w, h, fill, radius_override=radius_override)
     canvas.alpha_composite(layer)
 
 
@@ -175,13 +184,18 @@ def _draw_shape(
     w: int,
     h: int,
     fill: tuple[int, int, int, int],
+    *,
+    radius_override: int | None = None,
 ) -> None:
     if overlay.shape == "circle":
         draw.ellipse((x, y, x + w, y + h), fill=fill)
     elif overlay.shape == "rounded_rect":
+        radius = (
+            radius_override if radius_override is not None else overlay.border_radius * _SUPERSAMPLE
+        )
         draw.rounded_rectangle(
             (x, y, x + w, y + h),
-            radius=overlay.border_radius * _SUPERSAMPLE,
+            radius=radius,
             fill=fill,
         )
     else:

@@ -18,7 +18,12 @@ import { EventSource } from 'eventsource';
 import { currentBackend } from '@/core/api/client';
 import {
   SERVER_EVENT_NAMES,
+  type BatchProgressChangedEvent,
+  type BatchProgressPayload,
+  type CampaignLockChangedEvent,
   type HeartbeatEvent,
+  type RenderJobChangedEvent,
+  type RenderJobPayload,
   type ResyncEvent,
   type ServerEvent,
   type ServerEventName,
@@ -61,6 +66,132 @@ function parseResync(payload: unknown): ResyncEvent | null {
     return null;
   }
   return { boot_id: record.boot_id, reason: record.reason };
+}
+
+function parseCampaignLockChanged(payload: unknown): CampaignLockChangedEvent | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+  const record = payload as { boot_id?: unknown; campaign_id?: unknown; locked?: unknown };
+  if (typeof record.boot_id !== 'string' || record.boot_id.length === 0) {
+    return null;
+  }
+  if (typeof record.campaign_id !== 'string' || record.campaign_id.length === 0) {
+    return null;
+  }
+  if (typeof record.locked !== 'boolean') {
+    return null;
+  }
+  return { boot_id: record.boot_id, campaign_id: record.campaign_id, locked: record.locked };
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function parseRenderJobPayload(value: unknown): RenderJobPayload | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const job = value as Record<string, unknown>;
+  if (typeof job.id !== 'string' || job.id.length === 0) return null;
+  if (typeof job.campaign_id !== 'string' || job.campaign_id.length === 0) return null;
+  if (typeof job.campaign_name !== 'string') return null;
+  if (typeof job.job_type !== 'string') return null;
+  if (typeof job.status !== 'string') return null;
+  if (typeof job.queue_position !== 'number') return null;
+  if (typeof job.progress_pct !== 'number') return null;
+  if (typeof job.created_at !== 'string') return null;
+
+  return {
+    id: job.id,
+    campaign_id: job.campaign_id,
+    campaign_name: job.campaign_name,
+    asset_id: optionalString(job.asset_id),
+    job_type: job.job_type,
+    status: job.status,
+    queue_position: job.queue_position,
+    progress_pct: job.progress_pct,
+    depends_on_job_id: optionalString(job.depends_on_job_id),
+    output_filename: optionalString(job.output_filename),
+    error_message: optionalString(job.error_message),
+    error_details: optionalString(job.error_details),
+    ffmpeg_command: optionalString(job.ffmpeg_command),
+    created_at: job.created_at,
+    started_at: optionalString(job.started_at),
+    finished_at: optionalString(job.finished_at),
+  };
+}
+
+function parseRenderJobChanged(payload: unknown): RenderJobChangedEvent | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+  const record = payload as { boot_id?: unknown; job?: unknown };
+  if (typeof record.boot_id !== 'string' || record.boot_id.length === 0) {
+    return null;
+  }
+  const job = parseRenderJobPayload(record.job);
+  if (!job) {
+    return null;
+  }
+  return { boot_id: record.boot_id, job };
+}
+
+function parseBatchProgressPayload(value: unknown): BatchProgressPayload | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const batch = value as Record<string, unknown>;
+  const total = batch.total;
+  const completed = batch.completed;
+  const failed = batch.failed;
+  const active = batch.active;
+  const waiting = batch.waiting;
+  const activeJobCount = batch.active_job_count;
+  const progressPct = batch.progress_pct;
+  const etaSeconds = batch.eta_seconds;
+
+  if (
+    typeof total !== 'number' ||
+    typeof completed !== 'number' ||
+    typeof failed !== 'number' ||
+    typeof active !== 'number' ||
+    typeof waiting !== 'number' ||
+    typeof activeJobCount !== 'number' ||
+    typeof progressPct !== 'number'
+  ) {
+    return null;
+  }
+  if (etaSeconds !== null && typeof etaSeconds !== 'number') {
+    return null;
+  }
+
+  return {
+    total,
+    completed,
+    failed,
+    active,
+    waiting,
+    active_job_count: activeJobCount,
+    progress_pct: progressPct,
+    eta_seconds: etaSeconds,
+  };
+}
+
+function parseBatchProgressChanged(payload: unknown): BatchProgressChangedEvent | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+  const record = payload as { boot_id?: unknown; batch?: unknown };
+  if (typeof record.boot_id !== 'string' || record.boot_id.length === 0) {
+    return null;
+  }
+  const batch = parseBatchProgressPayload(record.batch);
+  if (!batch) {
+    return null;
+  }
+  return { boot_id: record.boot_id, batch };
 }
 
 /**
@@ -185,6 +316,27 @@ export class EventStream {
         const resync = parseResync(payload);
         if (resync) {
           this.handlers.onEvent?.({ name: 'resync', payload: resync });
+        }
+        return;
+      }
+      case 'campaign_lock_changed': {
+        const lockChanged = parseCampaignLockChanged(payload);
+        if (lockChanged) {
+          this.handlers.onEvent?.({ name: 'campaign_lock_changed', payload: lockChanged });
+        }
+        return;
+      }
+      case 'render_job_changed': {
+        const jobChanged = parseRenderJobChanged(payload);
+        if (jobChanged) {
+          this.handlers.onEvent?.({ name: 'render_job_changed', payload: jobChanged });
+        }
+        return;
+      }
+      case 'batch_progress_changed': {
+        const batchChanged = parseBatchProgressChanged(payload);
+        if (batchChanged) {
+          this.handlers.onEvent?.({ name: 'batch_progress_changed', payload: batchChanged });
         }
         return;
       }

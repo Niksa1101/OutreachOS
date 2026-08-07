@@ -6,7 +6,7 @@ Applying a preset **copies** its values into the campaign. Editing or deleting a
 
 **Blocked by:** 12 — Full overlay property set.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Save as Preset captures the complete current overlay config under a user-supplied name
 - [ ] Apply Preset copies values into the campaign and the preview updates immediately

@@ -209,6 +209,7 @@ class RenderJob(TimestampMixin, Base):
         Index("ix_render_jobs_status_position", "status", "queue_position"),
         Index("ix_render_jobs_campaign", "campaign_id"),
         Index("ix_render_jobs_depends_on", "depends_on_job_id"),
+        Index("ix_render_jobs_run_id", "run_id"),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
@@ -233,6 +234,13 @@ class RenderJob(TimestampMixin, Base):
     Deliberately **not** a foreign key: DB.md §3.3 deletes completed jobs after
     export, and a self-referential FK would either block that or cascade the
     deletion into jobs that are still queued.
+    """
+
+    run_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """Groups jobs from one Generate / Retry into a batch-progress scope.
+
+    ``list_render_queue`` still returns every row (history); only the batch
+    rollup filters to the current run.
     """
 
     output_path: Mapped[str | None] = mapped_column(Text, nullable=True)

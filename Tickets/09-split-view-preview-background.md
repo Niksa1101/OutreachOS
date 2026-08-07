@@ -10,7 +10,7 @@ A campaign with no recordings shows a neutral placeholder canvas at the correct 
 
 **Blocked by:** 05 — Recordings table with inline editing.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Config-left / preview-right split, with the preview pinned as the config column scrolls
 - [ ] The preview background is a frame from the first recording at 00:02, clamped to the midpoint for short recordings

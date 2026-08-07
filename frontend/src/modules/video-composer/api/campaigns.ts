@@ -9,18 +9,26 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 
 import { apiFetch } from '@/core/api/client';
 import type {
+  ApplyPresetRequest,
   AssetRelocateRequest,
   CampaignCreateRequest,
   CampaignDeletePreview,
   CampaignDetail,
   CampaignListResponse,
   CampaignUpdateRequest,
+  OverlayConfigDto,
+  OverlayPresetCreateRequest,
+  OverlayPresetDetail,
+  OverlayPresetListResponse,
+  OverlayPresetRenameRequest,
+  OverlayPresetSummary,
   PreviewFrameResponse,
   RecordingImportRequest,
   RecordingImportResponse,
   RecordingDetail,
   RecordingUpdateRequest,
   TalkingHeadAssignRequest,
+  TalkingHeadTrimRequest,
 } from '@/core/api/types';
 
 export const campaignQueryKeys = {
@@ -29,6 +37,16 @@ export const campaignQueryKeys = {
   detail: (id: string) => ['campaigns', 'detail', id] as const,
   previewFrame: (id: string) => ['campaigns', 'detail', id, 'preview-frame'] as const,
 };
+
+export const presetQueryKeys = {
+  all: ['overlay-presets'] as const,
+  list: ['overlay-presets', 'list'] as const,
+};
+
+export const presetsListQuery = queryOptions({
+  queryKey: presetQueryKeys.list,
+  queryFn: () => apiFetch<OverlayPresetListResponse>('/overlay-presets'),
+});
 
 export const campaignsListQuery = queryOptions({
   queryKey: campaignQueryKeys.list,
@@ -120,12 +138,46 @@ export function useDeleteCampaign() {
   });
 }
 
+export function useUpdateOverlayConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ campaignId, overlay }: { campaignId: string; overlay: OverlayConfigDto }) =>
+      apiFetch<CampaignDetail>(`/campaigns/${campaignId}/overlay`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(overlay),
+      }),
+    onSuccess: (detail) => {
+      queryClient.setQueryData(campaignQueryKeys.detail(detail.id), detail);
+      void queryClient.invalidateQueries({ queryKey: campaignQueryKeys.all });
+    },
+  });
+}
+
 export function useAssignTalkingHead() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ campaignId, ...body }: TalkingHeadAssignRequest & { campaignId: string }) =>
       apiFetch<CampaignDetail>(`/campaigns/${campaignId}/talking-head`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (detail) => {
+      queryClient.setQueryData(campaignQueryKeys.detail(detail.id), detail);
+      void queryClient.invalidateQueries({ queryKey: campaignQueryKeys.all });
+    },
+  });
+}
+
+export function useUpdateTalkingHeadTrim() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ campaignId, ...body }: TalkingHeadTrimRequest & { campaignId: string }) =>
+      apiFetch<CampaignDetail>(`/campaigns/${campaignId}/talking-head/trim`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -240,6 +292,86 @@ export function useDeleteRecording() {
         queryKey: campaignQueryKeys.previewFrame(variables.campaignId),
       });
       void queryClient.invalidateQueries({ queryKey: campaignQueryKeys.all });
+    },
+  });
+}
+
+export function useCancelQueue() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (campaignId: string) =>
+      apiFetch<CampaignDetail>(`/campaigns/${campaignId}/cancel-queue`, {
+        method: 'POST',
+      }),
+    onSuccess: (detail) => {
+      queryClient.setQueryData(campaignQueryKeys.detail(detail.id), detail);
+      void queryClient.invalidateQueries({ queryKey: campaignQueryKeys.all });
+      // Ticket 19: Cancel Queue clears jobs the queue screen also shows.
+      void queryClient.invalidateQueries({ queryKey: ['render-queue'] });
+    },
+  });
+}
+
+export function useApplyPreset() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ campaignId, ...body }: ApplyPresetRequest & { campaignId: string }) =>
+      apiFetch<CampaignDetail>(`/campaigns/${campaignId}/apply-preset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (detail) => {
+      queryClient.setQueryData(campaignQueryKeys.detail(detail.id), detail);
+      void queryClient.invalidateQueries({ queryKey: campaignQueryKeys.all });
+    },
+  });
+}
+
+export function useCreatePreset() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: OverlayPresetCreateRequest) =>
+      apiFetch<OverlayPresetDetail>('/overlay-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: presetQueryKeys.all });
+    },
+  });
+}
+
+export function useRenamePreset() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, name }: OverlayPresetRenameRequest & { id: string }) =>
+      apiFetch<OverlayPresetSummary>(`/overlay-presets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: presetQueryKeys.all });
+    },
+  });
+}
+
+export function useDeletePreset() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/overlay-presets/${id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: presetQueryKeys.all });
     },
   });
 }

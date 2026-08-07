@@ -22,6 +22,12 @@ export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  /**
+   * Ticket 18: when set, the sidebar shows a live count badge driven by the
+   * global render-queue query. Core knows how to resolve the kind; modules only
+   * opt in — they cannot push a React node across the boundary.
+   */
+  badge?: 'render-queue-active';
 }
 
 export interface ModuleDefinition {
@@ -47,7 +53,12 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: Clapperboard,
     navItems: [
       { to: '/video-composer/campaigns', label: 'Campaigns', icon: LayoutList },
-      { to: '/video-composer/queue', label: 'Render Queue', icon: ListVideo },
+      {
+        to: '/video-composer/queue',
+        label: 'Render Queue',
+        icon: ListVideo,
+        badge: 'render-queue-active',
+      },
     ],
   },
 ];

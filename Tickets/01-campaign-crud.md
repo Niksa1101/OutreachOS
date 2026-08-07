@@ -10,7 +10,7 @@ The status column starts deliberately thin: at this point a campaign is only eve
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Campaigns list, create, rename, and read-one are served from a video-composer module router under `/api/v1` and require the shared-secret token like every other route
 - [ ] A new campaign is created with a valid default overlay config and the current overlay schema version

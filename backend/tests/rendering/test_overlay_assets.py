@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from outreachos_backend.rendering.config import OverlayConfig, ShadowConfig
+from outreachos_backend.rendering.config import BackgroundConfig, OverlayConfig, ShadowConfig
 from outreachos_backend.rendering.overlay_assets import render_overlay_assets
 
 REF_DIR = Path(__file__).resolve().parent / "fixtures" / "overlay_refs"
@@ -31,6 +31,17 @@ REF_DIR = Path(__file__).resolve().parent / "fixtures" / "overlay_refs"
                     opacity=0.5,
                     color="#000000",
                 ),
+            ),
+        ),
+        (
+            "rect",
+            OverlayConfig(shape="rect"),
+        ),
+        (
+            "padded_background",
+            OverlayConfig(
+                padding=40,
+                background=BackgroundConfig(enabled=True, color="#0A0A0A"),
             ),
         ),
     ],

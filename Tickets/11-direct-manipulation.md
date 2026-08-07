@@ -6,7 +6,7 @@ Clamping is enforced on every input path equally: drag, resize, snap, and typed 
 
 **Blocked by:** 10 — Calibrated CSS overlay preview.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Dragging the overlay repositions it and persists the result
 - [ ] A resize handle changes width and height, respecting minimum size

@@ -31,6 +31,13 @@ The workspace pointer cannot live inside the workspace it points to. Everything 
     outreachos.log  (rolling)
 ```
 
+`render_jobs.output_path` stores the outputs path **relative to the workspace root**, POSIX
+separators, resolved as `workspace.root / output_path` at use time — so moving the workspace does
+not break it. The per-campaign namespace under `outputs/` is fixed by
+[ADR-0014](docs/decisions/0014-outputs-staging-layout.md): export (ticket 23) and company rename
+(ticket 24) both operate inside one campaign's staging tree without colliding with another
+campaign's identical company names.
+
 ---
 
 ## 2. Conventions
@@ -80,6 +87,7 @@ One row per file referenced by a campaign. **Source files are never copied or mo
 | `source_filename` | TEXT NOT NULL | For display and relocation matching |
 | `company_name` | TEXT NULL | `screen_recording` only |
 | `output_basename` | TEXT NULL | Resolved **at add time**, incl. `(2)` suffix |
+| `name_auto_suffixed` | INTEGER NOT NULL DEFAULT 0 | Set when the add-time resolver added a suffix; drives the `duplicate_company_name` warning |
 | `sort_order` | INTEGER NOT NULL | |
 | **Probe results** | | |
 | `probe_status` | TEXT | `pending` \| `ok` \| `failed` |
@@ -107,6 +115,9 @@ One row per file referenced by a campaign. **Source files are never copied or mo
 
 **Indexes:** `(campaign_id, role, sort_order)`
 
+`name_auto_suffixed` is stored rather than recomputed: once a name has been suffixed it *is* unique,
+so a check at read time would find no duplicate and the warning would vanish on the next reload.
+
 **Effective duration** for a talking head is `trim_end_ms - trim_start_ms`. This value is `D` — it defines the length of every output in the campaign.
 
 ---
@@ -126,6 +137,7 @@ The global queue. One table serves both job types so the queue is genuinely unif
 | `progress_pct` | REAL NOT NULL DEFAULT 0 | 0–100 |
 | `attempts` | INTEGER NOT NULL DEFAULT 0 | |
 | `depends_on_job_id` | TEXT NULL | Video jobs point at their `alpha_prepare` |
+| `run_id` | TEXT NULL | Groups one Generate / Retry for batch-progress scoping |
 | `output_path` | TEXT NULL | Relative to workspace |
 | `output_filename` | TEXT NULL | Snapshot of `output_basename` at enqueue |
 | `error_message` | TEXT NULL | Plain-language summary |
@@ -134,14 +146,18 @@ The global queue. One table serves both job types so the queue is genuinely unif
 | `started_at` / `finished_at` | TEXT NULL | |
 | `created_at` / `updated_at` | TEXT | |
 
-**Indexes:** `(status, queue_position)` · `(campaign_id)` · `(depends_on_job_id)`
+**Indexes:** `(status, queue_position)` · `(campaign_id)` · `(depends_on_job_id)` · `(run_id)`
 
 **Rules**
 - `alpha_prepare` rows are pinned above their campaign's `video_render` rows and cannot be dragged below them
 - The actively-encoding job cannot be reordered
 - If an `alpha_prepare` job fails, every dependent job is failed immediately with the same root cause
-- On startup, any job left `preparing` / `rendering` / `encoding` resets to `waiting` and its partial output is deleted
+- On startup, any job left `preparing` / `rendering` / `encoding` resets to `waiting` and its partial (`.part.mp4`) output is deleted; pre-existing final MP4s are left intact
 - Completed jobs are deleted after successful export; failed jobs persist until dismissed
+
+**Not persisted:** the queue's paused/running flag lives in the worker pool process, not in a
+column. It is deliberately not durable — a restart always comes up paused anyway (crash recovery
+above), and a persisted flag could strand the queue paused with no in-app way to notice why.
 
 ---
 
@@ -275,13 +291,14 @@ WHERE campaign_id = ? AND role = 'screen_recording'
 
 `Re-render All` ignores the final predicate.
 
-**Next job for the worker** — dependency-aware, so a video job never starts before its alpha clip exists.
+**Next job for the worker** — dependency-aware, so a video job never starts before its alpha clip exists. A dangling `depends_on_job_id` (row deleted by cancel / export) is treated as satisfied so orphans cannot wedge the queue.
 
 ```sql
 SELECT * FROM render_jobs
 WHERE status = 'waiting'
   AND (depends_on_job_id IS NULL
-       OR depends_on_job_id IN (SELECT id FROM render_jobs WHERE status = 'completed'))
+       OR depends_on_job_id IN (SELECT id FROM render_jobs WHERE status = 'completed')
+       OR depends_on_job_id NOT IN (SELECT id FROM render_jobs))
 ORDER BY queue_position
 LIMIT 1;
 ```
@@ -298,6 +315,19 @@ LIMIT 1;
 ---
 
 ## 7. Migration Policy
+
+**Applied revisions to date**
+
+| Revision | Lands | Change |
+|---|---|---|
+| `0001_initial_schema` | P0 | All five tables, indexes, constraints, and the `app_settings` singleton row |
+| `0002_media_assets_name_auto_suffixed` | P2 | `media_assets.name_auto_suffixed`, §3.2 |
+| `0003_render_jobs_run_id` | P4 | `render_jobs.run_id` + `ix_render_jobs_run_id`, §3.3 |
+
+Migrations hardcode enum literals rather than importing `core/enums.py` — a migration is a frozen
+snapshot, and importing a live enum would let a later change silently rewrite what an already-run
+migration meant. `test_schema_drift.py` compares the models against the migration head so the
+duplication cannot rot unnoticed.
 
 - Alembic runs automatically at backend startup, before the API accepts requests
 - Every schema change ships as a migration — **never** an ad-hoc `ALTER`

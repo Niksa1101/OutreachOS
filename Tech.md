@@ -44,19 +44,30 @@ Native desktop performance with a web frontend, at a fraction of Electron's foot
 
 ## 3. Frontend
 
-| Technology | Purpose |
-|---|---|
-| **React 19** | UI runtime |
-| **TypeScript** | Strict mode, no implicit `any` |
-| **Vite** | Dev server and build |
-| **Tailwind CSS** | Utility styling, driven entirely by design tokens |
-| **shadcn/ui** | Component primitives — see §3.1, mandatory |
-| **TanStack Router** | Type-safe routing; params pair naturally with generated API types |
-| **TanStack Query** | All server state — caching, invalidation, SSE-driven updates |
-| **Zustand** | Local UI state only (editor interaction, transient panel state) |
-| **React Hook Form + Zod** | Campaign and settings forms; Zod schemas mirror backend contracts |
-| **dnd-kit** | Queue reordering |
-| **Framer Motion** | Micro-interactions only |
+| Technology | Purpose | Adopted |
+|---|---|---|
+| **React 19** | UI runtime | ✅ |
+| **TypeScript** | Strict mode, no implicit `any` | ✅ |
+| **Vite** | Dev server and build | ✅ |
+| **Tailwind CSS** | Utility styling, driven entirely by design tokens | ✅ v4 |
+| **shadcn/ui** | Component primitives — see §3.1, mandatory | ✅ v4, on `@base-ui/react` |
+| **TanStack Router** | Type-safe routing; params pair naturally with generated API types | ✅ |
+| **TanStack Query** | All server state — caching, invalidation, SSE-driven updates | ✅ |
+| **dnd-kit** | Queue reordering | ✅ (P4) |
+| **Zustand** | Local UI state only (editor interaction, transient panel state) | Not yet needed |
+| **React Hook Form + Zod** | Campaign and settings forms; Zod schemas mirror backend contracts | Not yet needed |
+| **Framer Motion** | Micro-interactions only | Not installed |
+
+**On the three unadopted entries.** They remain the locked choice for when the need arrives — this
+is a "not yet installed" note, not a substitution, and no ADR is required to add them. Through P4:
+editor state is local component state (the interactions are single-surface, not cross-tree);
+forms are small enough that controlled inputs plus the backend's Pydantic validation cover them
+without a form library; and the only motion in the product is queue row enter/exit and status
+changes, handled by `tw-animate-css` and CSS transitions on tokenized durations. Reaching for a
+runtime dependency before there is a problem it solves is how a batch tool grows a bundle.
+
+shadcn v4 generates against **`@base-ui/react`** rather than Radix. That is what
+`--preset b51GFh7y6` emits today; the mandate in §3.1 is unchanged.
 
 ### 3.1 shadcn/ui — mandatory workflow
 
@@ -70,7 +81,9 @@ npx shadcn@latest add button dialog table
 
 **Every agent or developer building UI must use this.** Check the shadcn registry before writing any component. shadcn provides primitives; the visual identity is ours. Custom components live in `frontend/src/core/ui/`, composed from shadcn primitives, styled exclusively through tokens.
 
-> ⚠ The preset targets `--template next`, but this project is Vite + Tauri. Resolve during P0: keep the preset ID (it carries the design configuration), adjust only the template target, and record the outcome in an ADR.
+> ✅ **Resolved in P0** — [ADR-0001](docs/decisions/0001-shadcn-preset-vite.md). The preset targets
+> `--template next`, but this project is Vite + Tauri: the preset ID is kept, `--template next` is
+> dropped, and the palette is overridden per Q123. Run it without the template flag.
 
 ### 3.2 State ownership
 
@@ -124,20 +137,34 @@ Bound to `127.0.0.1` on a **random free port**, with a **shared-secret token** g
 
 ### 4.3 Backend structure
 
+The package ships as `backend/src/outreachos_backend/` (src-layout, per
+[ADR-0004](docs/decisions/0004-backend-package-layout.md)):
+
 ```
-backend/app/
-  core/         # config, db session, event bus, settings, workspace paths, logging
+backend/src/outreachos_backend/
+  core/         # app, boot, config, control, db, events, errors, lock, logging,
+                # migrate, models, openapi, routes/, security, workspace
   modules/
-    video_composer/   # router, service, models, schemas
+    video_composer/   # router, service, models, schemas, validation,
+                      # filename_cleanup, render_worker, batch_progress, deps
   rendering/
-    ffmpeg.py         # binary resolution + process wrapper
+    binaries.py       # bundled-binary resolution — never PATH
+    process.py        # FFmpeg process wrapper
     probe.py          # FFprobe
-    overlay_builder.py # Pillow asset generation
-    steps/            # composite step objects
-    pipeline.py       # filtergraph assembly
-    queue/            # worker pool, job state machine
+    capabilities.py   # encoder detection
+    overlay_assets.py # Pillow asset generation
+    geometry.py       # canvas/overlay math
+    steps/            # composite step objects (focal_crop, alpha_merge,
+                      # alpha_fade, bleed_pad, padding_pad)
+    graph.py          # filtergraph assembly
+    pipeline.py       # per-video render pipeline
+    alpha.py cache.py # alpha clip build + content-hash cache
+    progress.py       # `-progress` parser
+    queue/pool.py     # worker pool, concurrency pinned to 1
+    cli.py            # headless CLI entry point
+    presets.py frame_extract.py
   vendor/ffmpeg/      # bundled static binaries
-alembic/
+backend/alembic/
 ```
 
 Core services — database session, event bus, settings, workspace paths, and the job queue — are **shared infrastructure**. Future modules reuse the queue for scraping, enrichment, and AI work.
@@ -207,6 +234,9 @@ The workspace pointer cannot live inside the workspace it points to. See [`DB.md
 | **GitHub Actions** | Lint, typecheck, test on push. Release builds manual in V1. |
 
 No component tests. No E2E. Tests go where bugs are invisible.
+
+**Current suite (end of P4):** 394 pytest · 106 Vitest, plus the Rust shell tests. Green on Windows
+and Ubuntu in CI.
 
 ---
 

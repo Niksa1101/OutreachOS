@@ -1,6 +1,7 @@
 # OutreachOS — Product Requirements & Implementation Plan
 
-> **Status:** Specification locked. **P0 complete** (2026-08-04). **P1 complete** (2026-08-05).
+> **Status:** Specification locked. **P0 complete** (2026-08-04) · **P1 complete** (2026-08-05) ·
+> **P2, P3, P4 complete** (2026-08-07). **P5 (Export) is next.**
 > **Version:** 1.0 (Video Composer)
 > **Target platform:** Windows 11 (code written cross-platform-clean)
 
@@ -304,6 +305,8 @@ Blocking issues disable *Generate Videos* with a stated reason. Warnings render 
 
 ### P2 — Campaign & Asset Management
 
+**Status:** ✅ **Complete** (2026-08-07) — tickets 01–08.
+
 **Goal:** Data in, validated, visible. Still no overlay editing, still no rendering from the UI.
 
 **Deliverables**
@@ -324,9 +327,16 @@ Blocking issues disable *Generate Videos* with a stated reason. Warnings render 
 - Every §6.6 validation case renders correctly in the UI
 - *Generate Videos* correctly disabled with a stated reason when requirements are unmet
 
+**Landed beyond the deliverable list**
+- `name_auto_suffixed` on `media_assets` (migration `0002`) so the duplicate-name warning survives a reload instead of being recomputed from a name that already carries its suffix
+- Recording import probes in a thread pool and reports per-file rejections rather than failing the whole drop
+
 ---
 
 ### P3 — Overlay Editor
+
+**Status:** ✅ **Complete** (2026-08-07) — tickets 09–14, plus editor locking (ticket 21) built here
+and exercised in P4.
 
 **Goal:** The core creative surface.
 
@@ -345,9 +355,20 @@ Blocking issues disable *Generate Videos* with a stated reason. Warnings render 
 - Preview and rendered output agree within golden-frame tolerance for all three shapes
 - Overlay cannot be placed off-frame or inverted by any input path
 
+**Verification**
+- Geometry, clamping, and snap logic are unit-tested in `overlay-geometry.test.ts` and
+  `overlay-geometry.direct-manipulation.test.ts`
+- CSS↔Pillow agreement is pinned by `overlay-geometry.parity.test.ts` on the frontend side and the
+  `overlay_refs/` fixtures on the Pillow side. Shadow blur needs **no divergence factor** —
+  [ADR-0013](docs/decisions/0013-css-pillow-shadow-calibration.md) resolves Risk #2.
+- Media reaches the preview over the local HTTP API rather than `file://`
+  ([ADR-0012](docs/decisions/0012-local-media-transport.md))
+
 ---
 
 ### P4 — Render Queue
+
+**Status:** ✅ **Complete** (2026-08-07) — tickets 15–22.
 
 **Goal:** Batch execution the user can trust and walk away from.
 
@@ -368,6 +389,18 @@ Blocking issues disable *Generate Videos* with a stated reason. Warnings render 
 - 30-video batch completes unattended
 - Injected mid-batch failure: batch continues, error is legible, retry works
 - Kill the app mid-batch: relaunch recovers correctly with no orphaned partials
+
+**Verification**
+- **Automated:** worker pool, job state machine, alpha-failure cascade, skip-completed, queue
+  controls, batch progress/ETA, failure surfacing, and crash recovery all covered by pytest
+  (`test_worker_pool.py`, `test_render_worker.py`, `test_queue_controls.py`,
+  `test_failure_surfacing.py`, `test_crash_close_recovery.py`, `test_skip_completed.py`,
+  `test_batch_progress.py`); ETA and close-guard logic covered by Vitest
+- **Deferred to P6 acceptance (ticket 30):** the unattended 30-video run and the mid-batch kill are
+  validated against a real production batch in the packaged build, not in dev mode
+
+**Schema change landed here:** `render_jobs.run_id` (migration `0003`) scopes batch progress to the
+current Generate / Retry instead of every historical row.
 
 ---
 
@@ -432,10 +465,10 @@ These are **implementation risks with named fallbacks**, not open decisions. All
 
 | # | Risk | Resolves in | Fallback |
 |---|---|---|---|
-| 1 | ProRes 4444 alpha clip size / decode speed | P1 | QTRLE or VP9-alpha, drop-in |
-| 2 | CSS `box-shadow` ≠ Pillow Gaussian blur | P1 → P3 | Calibration pass; golden frames prevent drift |
-| 3 | NVENC may not beat CPU for 25s clips | P1 | Auto-detect stays; benchmark decides the default |
-| 4 | `tpad` + `overlay` + fade ordering in one graph | P1 | Reorder graph nodes; worst case, pad before overlay |
+| 1 | ProRes 4444 alpha clip size / decode speed | ~~P1~~ ✅ | Resolved — measured viable, no fallback needed ([`p1-verification.md`](docs/p1-verification.md)) |
+| 2 | CSS `box-shadow` ≠ Pillow Gaussian blur | ~~P1 → P3~~ ✅ | Resolved — ADR-0013: `σ = blur / 2` on both sides, no divergence factor |
+| 3 | NVENC may not beat CPU for 25s clips | ~~P1~~ ✅ | Resolved — benchmarked; auto-detect stays ([`p1-verification.md`](docs/p1-verification.md)) |
+| 4 | `tpad` + `overlay` + fade ordering in one graph | ~~P1~~ ✅ | Resolved — single graph, ordering locked by the golden-frame suite |
 | 5 | PyInstaller freezing FastAPI/uvicorn/SQLAlchemy on Windows | P6 | Hidden-imports tuning; embedded runtime as fallback |
 | 6 | shadcn preset targets `next`, project is Vite | ~~P0~~ ✅ | Resolved — ADR-0001: preset kept, `--template next` dropped, palette overridden |
 
@@ -444,5 +477,9 @@ These are **implementation risks with named fallbacks**, not open decisions. All
 ## 10. Decision Record
 
 Decisions resolved before each phase: **Q1–Q126 before P0**, **Q127–Q201 before P1** — full records in [`docs/decisions/`](docs/decisions/). Each phase must record any deviation as an ADR with its rationale.
+
+**ADRs to date:** 0001–0006 (P0) · 0007–0012 (P1) · 0013 (P3, shadow calibration) · 0014 (P4, outputs staging layout — settled here because P5's export and rename both depend on it).
+
+Per-ticket scope for P2–P6 lives in [`Tickets/`](Tickets/), mapped to phases in [`Tickets/phases.md`](Tickets/phases.md).
 
 **A decision is not changed by writing different code. It is changed by writing a new ADR.**

@@ -2,6 +2,8 @@
 
 import contextlib
 import json
+import shutil
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -15,6 +17,7 @@ from outreachos_backend.core.enums import AssetRole, JobStatus, JobType, ProbeSt
 from outreachos_backend.core.errors import ApiError, ApiErrorCode
 from outreachos_backend.core.events import EventBus
 from outreachos_backend.core.models import new_id
+from outreachos_backend.core.settings_service import get_app_settings
 from outreachos_backend.core.timeutil import utcnow_iso
 from outreachos_backend.core.workspace import WorkspaceLayout
 from outreachos_backend.modules.video_composer.batch_progress import compute_batch_progress
@@ -34,9 +37,12 @@ from outreachos_backend.modules.video_composer.schemas import (
     CampaignDeleteOutputs,
     CampaignDeletePreview,
     CampaignDetail,
+    CampaignOutputsResponse,
     CampaignStatus,
     CampaignSummary,
     CampaignValidation,
+    ExportAllResponse,
+    ExportFailure,
     GeneratePlanResponse,
     GenerateVideosResponse,
     OverlayPresetDetail,
@@ -48,6 +54,7 @@ from outreachos_backend.modules.video_composer.schemas import (
     RenderJobSummary,
     RenderQueueResponse,
     RetryFailedResponse,
+    StagedOutputItem,
     TalkingHeadDetail,
 )
 from outreachos_backend.modules.video_composer.validation import validate_campaign
@@ -63,7 +70,6 @@ from outreachos_backend.rendering.cache import (
 )
 from outreachos_backend.rendering.config import (
     OverlayConfig,
-    QualityPreset,
     TalkingHeadConfig,
     upgrade_overlay_config,
 )
@@ -75,16 +81,6 @@ from outreachos_backend.rendering.process import request_cancel
 from outreachos_backend.rendering.queue.pool import WorkerPool
 
 DEFAULT_CAMPAIGN_NAME = "Untitled campaign"
-
-PRE_SETTINGS_DEFAULT_QUALITY_PRESET: QualityPreset = "standard"
-"""Ticket 15: fixed until ticket 25 introduces Settings.
-
-Deliberately **not** read from ``app_settings.quality_preset`` even though that
-row/column already exists and already defaults to ``"standard"`` — this value
-is pinned in code so ticket 25's work is wiring a value through rather than
-changing render behaviour. A campaign's own ``quality_override`` still wins
-when set; this is only the fallback.
-"""
 
 PREVIEW_FRAME_TARGET_MS = 2000
 """Ticket 09: extract at 00:02, clamped to the recording's midpoint when shorter."""
@@ -264,6 +260,7 @@ def _to_detail(session: Session, campaign: Campaign) -> CampaignDetail:
         status=_compute_status(last_rendered_at, validation),
         overlay_config=campaign.overlay_config,
         overlay_schema_version=campaign.overlay_schema_version,
+        quality_override=campaign.quality_override,  # type: ignore[arg-type]
         talking_head=_to_talking_head_detail(talking_head) if talking_head else None,
         recordings=recordings,
         validation=validation,
@@ -407,6 +404,21 @@ def rename_campaign(session: Session, campaign_id: str, name: str) -> CampaignDe
         )
 
     campaign.name = trimmed
+    campaign.updated_at = utcnow_iso()
+    session.commit()
+    session.refresh(campaign)
+    return _to_detail(session, campaign)
+
+
+def update_campaign_quality(
+    session: Session,
+    campaign_id: str,
+    *,
+    quality_override: str | None,
+) -> CampaignDetail:
+    _require_unlocked(session, campaign_id)
+    campaign = _require_campaign(session, campaign_id)
+    campaign.quality_override = quality_override
     campaign.updated_at = utcnow_iso()
     session.commit()
     session.refresh(campaign)
@@ -777,6 +789,7 @@ def _require_recording(session: Session, campaign_id: str, recording_id: str) ->
 
 def update_recording(
     session: Session,
+    workspace: WorkspaceLayout,
     campaign_id: str,
     recording_id: str,
     *,
@@ -793,17 +806,48 @@ def update_recording(
             status_code=422,
         )
 
+    staged = _staged_output_for_recording(session, workspace, campaign_id, recording_id)
+    source_path = staged[1] if staged is not None else None
+    staged_job = staged[0] if staged is not None else None
+
     taken = _existing_company_names(session, campaign_id)
     if asset.company_name is not None:
         taken.discard(asset.company_name)
+    taken |= _staged_output_basenames(workspace, campaign_id, exclude=source_path)
     resolved = resolve_unique_company_name(trimmed, taken)
     auto_suffixed = 1 if resolved != trimmed else 0
+
+    disk_renamed = False
+    if source_path is not None:
+        target_path = source_path.parent / f"{resolved}.mp4"
+        if source_path.name != target_path.name:
+            new_relative = target_path.relative_to(workspace.root).as_posix()
+            try:
+                source_path.rename(target_path)
+            except OSError as exc:
+                raise ApiError(
+                    ApiErrorCode.WORKSPACE_ERROR,
+                    "Could not rename the staged output file.",
+                    status_code=500,
+                    details={"reason": str(exc)},
+                ) from exc
+            disk_renamed = True
+            if staged_job is not None:
+                staged_job.output_path = new_relative
+                staged_job.output_filename = target_path.name
 
     asset.company_name = resolved
     asset.output_basename = resolved
     asset.name_auto_suffixed = auto_suffixed
     campaign.updated_at = utcnow_iso()
-    session.commit()
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        if source_path is not None and disk_renamed:
+            with contextlib.suppress(OSError):
+                target_path.rename(source_path)
+        raise
     session.refresh(asset)
     return _to_recording_detail(asset)
 
@@ -927,6 +971,59 @@ def _staged_output_paths(workspace: WorkspaceLayout, campaign_id: str) -> list[P
     return [path for path in output_dir.rglob("*") if path.is_file()]
 
 
+def _staged_output_basenames(
+    workspace: WorkspaceLayout,
+    campaign_id: str,
+    *,
+    exclude: Path | None = None,
+) -> set[str]:
+    """Basenames of committed staged MP4s — used so rename never overwrites on disk."""
+    output_dir = workspace.outputs / campaign_id
+    if not output_dir.is_dir():
+        return set()
+
+    exclude_resolved = exclude.resolve() if exclude is not None else None
+    basenames: set[str] = set()
+    for path in output_dir.iterdir():
+        if not path.is_file():
+            continue
+        if path.name.endswith(".part.mp4"):
+            continue
+        if path.suffix.lower() != ".mp4":
+            continue
+        if exclude_resolved is not None and path.resolve() == exclude_resolved:
+            continue
+        basenames.add(path.stem)
+    return basenames
+
+
+def _staged_output_for_recording(
+    session: Session,
+    workspace: WorkspaceLayout,
+    campaign_id: str,
+    recording_id: str,
+) -> tuple[RenderJob, Path] | None:
+    """The newest completed render job whose staged output file still exists on disk."""
+    jobs = session.scalars(
+        select(RenderJob)
+        .where(
+            RenderJob.campaign_id == campaign_id,
+            RenderJob.asset_id == recording_id,
+            RenderJob.job_type == JobType.VIDEO_RENDER.value,
+            RenderJob.status == JobStatus.COMPLETED.value,
+            RenderJob.output_path.is_not(None),
+        )
+        .order_by(RenderJob.finished_at.desc(), RenderJob.id.desc())
+    ).all()
+    for job in jobs:
+        if job.output_path is None:
+            continue
+        path = workspace.root / job.output_path
+        if path.is_file():
+            return job, path
+    return None
+
+
 def _file_size(path: Path) -> int | None:
     try:
         return path.stat().st_size if path.is_file() else None
@@ -1030,6 +1127,193 @@ def get_delete_preview(
             total_size_bytes=_sum_file_sizes(output_paths),
         ),
     )
+
+
+def _is_staged_output_file(path: Path) -> bool:
+    """Final staged renders only — not in-flight ``.part.mp4`` siblings."""
+    if not path.is_file():
+        return False
+    name = path.name
+    return name.endswith(".mp4") and not name.endswith(".part.mp4")
+
+
+def _list_staged_output_files(workspace: WorkspaceLayout, campaign_id: str) -> list[Path]:
+    output_dir = workspace.outputs / campaign_id
+    if not output_dir.is_dir():
+        return []
+    return sorted(path for path in output_dir.iterdir() if _is_staged_output_file(path))
+
+
+def _export_seed_path(session: Session, campaign: Campaign) -> str | None:
+    if campaign.default_export_path:
+        return campaign.default_export_path
+    return get_app_settings(session).default_export_path
+
+
+def _completed_export_jobs(session: Session, campaign_id: str) -> list[RenderJob]:
+    return list(
+        session.scalars(
+            select(RenderJob)
+            .where(
+                RenderJob.campaign_id == campaign_id,
+                RenderJob.job_type == JobType.VIDEO_RENDER.value,
+                RenderJob.status == JobStatus.COMPLETED.value,
+                RenderJob.output_path.is_not(None),
+            )
+            .order_by(RenderJob.queue_position, RenderJob.id)
+        ).all()
+    )
+
+
+def get_campaign_outputs(
+    session: Session,
+    workspace: WorkspaceLayout,
+    campaign_id: str,
+) -> CampaignOutputsResponse:
+    """Ticket 23: list un-exported renders in workspace staging."""
+    campaign = _require_campaign(session, campaign_id)
+    staged_files = _list_staged_output_files(workspace, campaign_id)
+    exportable_count = sum(
+        1
+        for job in _completed_export_jobs(session, campaign_id)
+        if job.output_path and (workspace.root / job.output_path).is_file()
+    )
+    return CampaignOutputsResponse(
+        outputs=[
+            StagedOutputItem(
+                filename=path.name,
+                size_bytes=_file_size(path) or 0,
+            )
+            for path in staged_files
+        ],
+        exportable_count=exportable_count,
+        default_export_path=_export_seed_path(session, campaign),
+        total_size_bytes=_sum_file_sizes(staged_files),
+    )
+
+
+def _validate_export_destination(
+    destination_path: str,
+    workspace: WorkspaceLayout,
+) -> Path:
+    dest = Path(destination_path)
+    if not dest.is_absolute():
+        raise ApiError(
+            ApiErrorCode.VALIDATION_ERROR,
+            "The export destination must be an absolute folder path.",
+            status_code=422,
+        )
+    if not dest.is_dir():
+        raise ApiError(
+            ApiErrorCode.VALIDATION_ERROR,
+            "That folder does not exist or is not a directory.",
+            status_code=422,
+        )
+    try:
+        resolved = dest.resolve()
+        if resolved.is_relative_to(workspace.root.resolve()):
+            raise ApiError(
+                ApiErrorCode.VALIDATION_ERROR,
+                "The export destination must be outside the workspace.",
+                status_code=422,
+            )
+    except ApiError:
+        raise
+    except OSError as exc:
+        raise ApiError(
+            ApiErrorCode.VALIDATION_ERROR,
+            "That folder path could not be resolved.",
+            status_code=422,
+        ) from exc
+    try:
+        with tempfile.NamedTemporaryFile(dir=dest, delete=True):
+            pass
+    except OSError as exc:
+        raise ApiError(
+            ApiErrorCode.VALIDATION_ERROR,
+            "OutreachOS cannot write to that folder.",
+            status_code=422,
+        ) from exc
+    return dest
+
+
+def export_all(
+    session: Session,
+    workspace: WorkspaceLayout,
+    event_bus: EventBus,
+    campaign_id: str,
+    *,
+    destination_path: str,
+) -> ExportAllResponse:
+    """Ticket 23: move completed renders out of staging and clear their queue rows."""
+    campaign = _require_campaign(session, campaign_id)
+    dest_dir = _validate_export_destination(destination_path, workspace)
+
+    moved_filenames: list[str] = []
+    conflicts: list[str] = []
+    failures: list[ExportFailure] = []
+
+    for job in _completed_export_jobs(session, campaign_id):
+        if not job.output_path or not job.output_filename:
+            continue
+        source = workspace.root / job.output_path
+        if not source.is_file():
+            continue
+
+        target = dest_dir / job.output_filename
+        if target.exists():
+            conflicts.append(job.output_filename)
+            continue
+
+        try:
+            shutil.move(str(source), str(target))
+        except OSError as exc:
+            failures.append(ExportFailure(filename=job.output_filename, reason=str(exc)))
+            continue
+
+        moved_filenames.append(job.output_filename)
+        session.delete(job)
+
+    session.flush()
+    _clear_orphaned_alpha_prepare(session, campaign_id)
+
+    campaign.default_export_path = str(dest_dir)
+    campaign.updated_at = utcnow_iso()
+    session.commit()
+
+    _remove_empty_dirs(workspace, workspace.outputs / campaign_id)
+
+    event_bus.batch_progress_changed(batch_event_payload(session))
+
+    return ExportAllResponse(
+        destination_path=str(dest_dir),
+        moved_count=len(moved_filenames),
+        moved_filenames=moved_filenames,
+        conflicts=conflicts,
+        failures=failures,
+    )
+
+
+def _clear_orphaned_alpha_prepare(session: Session, campaign_id: str) -> None:
+    """Drop a completed alpha_prepare row once every video_render row is gone."""
+    remaining_video = session.scalar(
+        select(func.count())
+        .select_from(RenderJob)
+        .where(
+            RenderJob.campaign_id == campaign_id,
+            RenderJob.job_type == JobType.VIDEO_RENDER.value,
+        )
+    )
+    if remaining_video:
+        return
+    for job in session.scalars(
+        select(RenderJob).where(
+            RenderJob.campaign_id == campaign_id,
+            RenderJob.job_type == JobType.ALPHA_PREPARE.value,
+            RenderJob.status == JobStatus.COMPLETED.value,
+        )
+    ).all():
+        session.delete(job)
 
 
 def _safe_unlink(workspace: WorkspaceLayout, path: Path) -> None:

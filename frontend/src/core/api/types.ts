@@ -23,6 +23,12 @@ type JsonResponse<T> = T extends { content: { 'application/json': infer B } } ? 
 export type HealthResponse = JsonResponse<paths['/api/v1/health']['get']['responses'][200]>;
 
 export type SettingsResponse = JsonResponse<paths['/api/v1/settings']['get']['responses'][200]>;
+export type SettingsUpdateRequest = NonNullable<
+  paths['/api/v1/settings']['patch']['requestBody']
+>['content']['application/json'];
+export type ClearCacheResponse = JsonResponse<
+  paths['/api/v1/settings/clear-cache']['post']['responses'][200]
+>;
 
 export type CampaignSummary = Schemas['CampaignSummary'];
 export type CampaignDetail = Schemas['CampaignDetail'];
@@ -32,7 +38,12 @@ export type CampaignValidation = Schemas['CampaignValidation'];
 export type ValidationIssue = Schemas['ValidationIssue'];
 export type CampaignCreateRequest = Schemas['CampaignCreateRequest'];
 export type CampaignUpdateRequest = Schemas['CampaignUpdateRequest'];
+export type CampaignQualityUpdateRequest = Schemas['CampaignQualityUpdateRequest'];
 export type CampaignDeletePreview = Schemas['CampaignDeletePreview'];
+export type CampaignOutputsResponse = Schemas['CampaignOutputsResponse'];
+export type ExportAllRequest = Schemas['ExportAllRequest'];
+export type ExportAllResponse = Schemas['ExportAllResponse'];
+export type StagedOutputItem = Schemas['StagedOutputItem'];
 export type TalkingHeadDetail = Schemas['TalkingHeadDetail'];
 export type TalkingHeadAssignRequest = Schemas['TalkingHeadAssignRequest'];
 export type TalkingHeadTrimRequest = Schemas['TalkingHeadTrimRequest'];

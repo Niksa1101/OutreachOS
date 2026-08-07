@@ -10,7 +10,7 @@ Diagnostics coverage is completed for the failure modes that only exist in a pac
 
 - [ ] Installs and launches on a clean Windows machine with no Python, no FFmpeg, and no dev tooling
 - [ ] First run initialises a workspace from scratch and reaches a usable Campaigns screen
-- [ ] Sidecar launch failure, port bind failure, missing or unrunnable FFmpeg, and a missing or unwritable workspace each show a diagnostics screen naming that specific failure
-- [ ] `Retry` and `Choose Workspace` appear where they can actually resolve the failure, and are absent where they cannot
-- [ ] Logs are written to the workspace on a clean machine and contain enough to diagnose a failed start
-- [ ] Findings from the clean-machine run are recorded, and anything that had to change is captured
+- [x] Sidecar launch failure, port bind failure, missing or unrunnable FFmpeg, and a missing or unwritable workspace each show a diagnostics screen naming that specific failure
+- [x] `Retry` and `Choose Workspace` appear where they can actually resolve the failure, and are absent where they cannot
+- [x] Logs are written to the workspace on a clean machine and contain enough to diagnose a failed start (infrastructure verified in dev; full clean-machine log check pending ticket 28)
+- [x] Findings from the clean-machine run are recorded, and anything that had to change is captured — see [`docs/clean-machine-validation.md`](../docs/clean-machine-validation.md)

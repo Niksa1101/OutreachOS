@@ -29,6 +29,8 @@ DegradedDiagnosticCode = Literal[
     "workspace_locked",
     "migration_failed",
     "database_newer_than_app",
+    "ffmpeg_missing",
+    "ffmpeg_unrunnable",
 ]
 
 

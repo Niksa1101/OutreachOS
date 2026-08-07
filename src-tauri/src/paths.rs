@@ -77,6 +77,18 @@ pub fn sidecar_paths(_resource_dir: Option<&std::path::Path>) -> SidecarPaths {
     }
 }
 
+/// Join paths under a Tauri resource directory. Testable without a runtime.
+#[cfg_attr(debug_assertions, allow(dead_code))]
+pub fn packaged_sidecar_paths(resources: &std::path::Path) -> SidecarPaths {
+    SidecarPaths {
+        // Q: no target-triple suffix. That convention belongs to
+        // tauri-plugin-shell's sidecar API, which ADR-0003 dropped.
+        program: resources.join("backend/outreachos-backend.exe"),
+        leading_args: Vec::new(),
+        ffmpeg_dir: resources.join("ffmpeg"),
+    }
+}
+
 /// Resolve the sidecar for a release build.
 ///
 /// ADR-0006: PyInstaller `onedir`, so this is an executable sitting beside its
@@ -90,13 +102,7 @@ pub fn sidecar_paths(resource_dir: Option<&std::path::Path>) -> SidecarPaths {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
 
-    SidecarPaths {
-        // Q: no target-triple suffix. That convention belongs to
-        // tauri-plugin-shell's sidecar API, which ADR-0003 dropped.
-        program: resources.join("backend/outreachos-backend.exe"),
-        leading_args: Vec::new(),
-        ffmpeg_dir: resources.join("ffmpeg"),
-    }
+    packaged_sidecar_paths(&resources)
 }
 
 #[cfg(test)]
@@ -116,5 +122,60 @@ mod tests {
             app_data_dir().file_name().and_then(|n| n.to_str()),
             Some(APP_DIR_NAME)
         );
+    }
+
+    #[test]
+    fn packaged_paths_target_the_staged_resource_layout() {
+        use std::path::Path;
+
+        let resources = Path::new("C:\\Program Files\\OutreachOS\\resources");
+        let paths = packaged_sidecar_paths(resources);
+
+        assert_eq!(
+            paths.program,
+            resources.join("backend/outreachos-backend.exe")
+        );
+        assert_eq!(paths.ffmpeg_dir, resources.join("ffmpeg"));
+        assert!(paths.leading_args.is_empty());
+    }
+
+    /// `packaged_sidecar_paths` and `tauri.conf.json` must agree on where the
+    /// frozen backend and bundled FFmpeg land under the resource directory.
+    /// The array form of `bundle.resources` installs one directory deeper and
+    /// breaks every packaged launch — this catches that drift from the config
+    /// side, where the staged-layout test above cannot.
+    #[test]
+    fn bundle_resources_map_matches_packaged_sidecar_paths() {
+        use std::collections::HashSet;
+        use std::path::Path;
+
+        let raw = include_str!("../tauri.conf.json");
+        let config: serde_json::Value =
+            serde_json::from_str(raw).expect("tauri.conf.json parses");
+
+        let resources = config["bundle"]["resources"]
+            .as_object()
+            .expect("bundle.resources must be a map, not an array of globs");
+
+        let sidecar_dests: HashSet<&str> = resources
+            .values()
+            .filter_map(|value| value.as_str())
+            .filter(|dest| !dest.is_empty())
+            .collect();
+
+        assert_eq!(
+            sidecar_dests,
+            HashSet::from(["backend", "ffmpeg"]),
+            "sidecar resource destinations must be exactly `backend` and `ffmpeg`"
+        );
+
+        let install_root = Path::new("C:\\Program Files\\OutreachOS\\resources");
+        let paths = packaged_sidecar_paths(install_root);
+
+        assert_eq!(
+            paths.program,
+            install_root.join("backend/outreachos-backend.exe")
+        );
+        assert_eq!(paths.ffmpeg_dir, install_root.join("ffmpeg"));
     }
 }

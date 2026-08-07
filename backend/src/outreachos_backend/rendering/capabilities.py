@@ -9,7 +9,7 @@ from pathlib import Path
 from outreachos_backend.rendering.binaries import Binaries
 from outreachos_backend.rendering.process import FfmpegProcess
 
-__all__ = ["detect_encoders", "select_encoder"]
+__all__ = ["default_encoder_from_list", "detect_encoders", "select_encoder"]
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +49,14 @@ def detect_encoders(binaries: Binaries) -> list[str]:
     return list(available)
 
 
+def default_encoder_from_list(available: list[str]) -> str:
+    """Pick the auto-detect default from a precomputed availability list."""
+    for name, _ in _CANDIDATES:
+        if name in available:
+            return name
+    return "libx264"
+
+
 def select_encoder(binaries: Binaries, override: str | None = None) -> str:
     detected = detect_encoders(binaries)
     if override:
@@ -56,10 +64,7 @@ def select_encoder(binaries: Binaries, override: str | None = None) -> str:
             log.warning("encoder override %s not available; falling back", override)
         else:
             return override
-    for name, _ in _CANDIDATES:
-        if name in detected:
-            return name
-    return "libx264"
+    return default_encoder_from_list(detected)
 
 
 def _list_encoders(binaries: Binaries) -> set[str]:

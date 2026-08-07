@@ -1,0 +1,2 @@
+# Staged sidecar and FFmpeg binaries for `tauri build`. Populated by
+# `scripts/stage-bundle-resources.ps1`; never commit the contents.

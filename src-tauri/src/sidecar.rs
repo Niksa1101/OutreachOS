@@ -363,7 +363,7 @@ pub fn spawn(request: SpawnRequest<'_>) -> Result<Sidecar, Diagnostic> {
     let (port_tx, port_rx) = mpsc::channel::<u16>();
 
     spawn_stdout_reader(stdout, port_tx);
-    spawn_stderr_reader(stderr, Arc::clone(&stderr_tail));
+    let stderr_done = spawn_stderr_reader(stderr, Arc::clone(&stderr_tail));
 
     let child = Arc::new(Mutex::new(child));
 
@@ -371,17 +371,21 @@ pub fn spawn(request: SpawnRequest<'_>) -> Result<Sidecar, Diagnostic> {
         Ok(port) => port,
         Err(reason) => {
             let _ = child.lock().map(|mut c| c.kill());
+            // Stderr arrives on a separate pipe and thread. On a fast exit
+            // (e.g. port_bind_failed + SystemExit(3)) stdout can close before
+            // the stderr reader has appended the marker — wait for that thread
+            // to finish (pipe closed by kill above) before classifying.
+            let _ = stderr_done.recv_timeout(Duration::from_millis(200));
             let cause = match reason {
                 // The reader thread ended, which means stdout closed, which
                 // means the process is gone. Almost always an import error.
                 RecvTimeoutError::Disconnected => "the process exited before reporting a port",
                 RecvTimeoutError::Timeout => "no @@OOS port line within 10s",
             };
-            return Err(Diagnostic::new(
-                DiagnosticCode::HandshakeTimeout,
-                "The backend started but never reported a port.",
-            )
-            .with_detail(format!("{cause}\n\n{}", captured(&stderr_tail))));
+            return Err(diagnostic_for_missing_port(
+                cause,
+                &captured(&stderr_tail),
+            ));
         }
     };
 
@@ -408,6 +412,23 @@ fn captured(tail: &Arc<Mutex<Vec<String>>>) -> String {
     tail.lock()
         .map(|lines| lines.join("\n"))
         .unwrap_or_default()
+}
+
+/// Ticket 29: classify stderr from a sidecar that died before the @@OOS line.
+fn diagnostic_for_missing_port(cause: &str, stderr: &str) -> Diagnostic {
+    if stderr.contains("port_bind_failed") {
+        return Diagnostic::new(
+            DiagnosticCode::PortBindFailed,
+            "The backend could not bind a local port.",
+        )
+        .with_detail(format!("{cause}\n\n{stderr}"));
+    }
+
+    Diagnostic::new(
+        DiagnosticCode::HandshakeTimeout,
+        "The backend started but never reported a port.",
+    )
+    .with_detail(format!("{cause}\n\n{stderr}"))
 }
 
 fn spawn_stdout_reader(stdout: std::process::ChildStdout, port_tx: mpsc::Sender<u16>) {
@@ -437,10 +458,15 @@ fn spawn_stdout_reader(stdout: std::process::ChildStdout, port_tx: mpsc::Sender<
         .expect("spawn stdout reader");
 }
 
-fn spawn_stderr_reader(stderr: std::process::ChildStderr, tail: Arc<Mutex<Vec<String>>>) {
+fn spawn_stderr_reader(
+    stderr: std::process::ChildStderr,
+    tail: Arc<Mutex<Vec<String>>>,
+) -> mpsc::Receiver<()> {
+    let (done_tx, done_rx) = mpsc::channel();
     std::thread::Builder::new()
         .name("sidecar-stderr".into())
         .spawn(move || {
+            let _done_tx = done_tx;
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                 // INFO, not WARN. Python's logging config sends *everything*
                 // to stderr so that a crash before the file handler has a
@@ -460,6 +486,7 @@ fn spawn_stderr_reader(stderr: std::process::ChildStderr, tail: Arc<Mutex<Vec<St
             tracing::debug!("sidecar stderr closed");
         })
         .expect("spawn stderr reader");
+    done_rx
 }
 
 /* -------------------------------------------------------------------------- */
@@ -601,6 +628,84 @@ fn parse_health_probe(bytes: &[u8]) -> std::io::Result<HealthProbe> {
     Ok(HealthProbe::Ok)
 }
 
+/* -------------------------------------------------------------------------- */
+/* Render queue                                                                */
+/* -------------------------------------------------------------------------- */
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct BatchProgressBody {
+    active_job_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct RenderQueueResponseBody {
+    batch: BatchProgressBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum QueueProbe {
+    ActiveCount(u32),
+    HttpStatus(u16),
+}
+
+/// Poll `/render-queue` and return `batch.active_job_count`.
+pub fn probe_queue_activity(port: u16, token: &str) -> std::io::Result<u32> {
+    match probe_queue(port, token)? {
+        QueueProbe::ActiveCount(count) => Ok(count),
+        QueueProbe::HttpStatus(status) => Err(std::io::Error::other(format!(
+            "render queue probe returned HTTP {status}"
+        ))),
+    }
+}
+
+fn probe_queue(port: u16, token: &str) -> std::io::Result<QueueProbe> {
+    let mut stream = TcpStream::connect(("127.0.0.1", port))?;
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+
+    write!(
+        stream,
+        "GET /api/v1/render-queue HTTP/1.1\r\n\
+         Host: 127.0.0.1:{port}\r\n\
+         Authorization: Bearer {token}\r\n\
+         Accept: application/json\r\n\
+         Connection: close\r\n\r\n"
+    )?;
+    stream.flush()?;
+
+    let response = read_http_response(&mut stream)?;
+    parse_queue_probe(&response)
+}
+
+fn parse_queue_probe(bytes: &[u8]) -> std::io::Result<QueueProbe> {
+    let status =
+        parse_status_code(bytes).ok_or_else(|| std::io::Error::other("unparseable status line"))?;
+
+    if status != 200 {
+        return Ok(QueueProbe::HttpStatus(status));
+    }
+
+    let text = std::str::from_utf8(bytes)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+    let body = text
+        .split_once("\r\n\r\n")
+        .or_else(|| text.split_once("\n\n"))
+        .map(|(_, body)| body.trim())
+        .unwrap_or("");
+
+    if body.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "empty render queue response body",
+        ));
+    }
+
+    let parsed: RenderQueueResponseBody = serde_json::from_str(body)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+
+    Ok(QueueProbe::ActiveCount(parsed.batch.active_job_count))
+}
+
 /// `HTTP/1.1 200 OK` -> `200`.
 fn parse_status_code(bytes: &[u8]) -> Option<u16> {
     let text = std::str::from_utf8(bytes).ok()?;
@@ -720,6 +825,67 @@ mod tests {
         assert_eq!(
             parse_health_probe(response).unwrap(),
             HealthProbe::HttpStatus(503)
+        );
+    }
+
+    #[test]
+    fn port_bind_marker_maps_to_port_bind_failed() {
+        let stderr = "outreachos-backend: port_bind_failed: [WinError 10048] address already in use";
+        let diagnostic = super::diagnostic_for_missing_port("the process exited before reporting a port", stderr);
+        assert_eq!(diagnostic.code, DiagnosticCode::PortBindFailed);
+    }
+
+    /// Exercises the stderr-reader drain wait: the marker line lands in the
+    /// tail after a brief delay, and classification must not run until the
+    /// reader thread has finished (disconnect signal on the done channel).
+    #[test]
+    fn stderr_drain_waits_for_late_tail_lines() {
+        let tail = Arc::new(Mutex::new(Vec::<String>::new()));
+        let (done_tx, done_rx) = mpsc::channel::<()>();
+
+        let tail_clone = Arc::clone(&tail);
+        std::thread::Builder::new()
+            .name("test-stderr".into())
+            .spawn(move || {
+                let _done_tx = done_tx;
+                std::thread::sleep(Duration::from_millis(30));
+                if let Ok(mut lines) = tail_clone.lock() {
+                    lines.push(
+                        "outreachos-backend: port_bind_failed: [WinError 10048]".into(),
+                    );
+                }
+            })
+            .expect("spawn test stderr reader");
+
+        let _ = done_rx.recv_timeout(Duration::from_millis(200));
+
+        let diagnostic = super::diagnostic_for_missing_port(
+            "the process exited before reporting a port",
+            &super::captured(&tail),
+        );
+        assert_eq!(diagnostic.code, DiagnosticCode::PortBindFailed);
+    }
+
+    #[test]
+    fn missing_port_without_marker_stays_handshake_timeout() {
+        let diagnostic = super::diagnostic_for_missing_port(
+            "no @@OOS port line within 10s",
+            "Traceback (most recent call last):",
+        );
+        assert_eq!(diagnostic.code, DiagnosticCode::HandshakeTimeout);
+    }
+
+    #[test]
+    fn parses_a_render_queue_body() {
+        let response = concat!(
+            "HTTP/1.1 200 OK\r\n",
+            "Content-Type: application/json\r\n",
+            "\r\n",
+            r#"{"jobs":[],"batch":{"total":3,"completed":1,"failed":0,"active":1,"waiting":1,"active_job_count":2,"progress_pct":33.3,"eta_seconds":null},"paused":false,"show_resume_prompt":false}"#
+        );
+        assert_eq!(
+            parse_queue_probe(response.as_bytes()).unwrap(),
+            QueueProbe::ActiveCount(2)
         );
     }
 }

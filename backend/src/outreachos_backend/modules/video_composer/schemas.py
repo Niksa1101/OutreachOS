@@ -4,6 +4,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from outreachos_backend.core.enums import QualityPreset
 from outreachos_backend.rendering.config import OverlayConfig
 
 
@@ -103,6 +104,10 @@ class RecordingDetail(BaseModel):
 class CampaignDetail(CampaignSummary):
     overlay_config: str = Field(description="Overlay JSON, DB.md §4.1.")
     overlay_schema_version: int
+    quality_override: QualityPreset | None = Field(
+        default=None,
+        description="NULL means inherit the global preset from Settings.",
+    )
     talking_head: TalkingHeadDetail | None = None
     recordings: list[RecordingDetail] = Field(
         default_factory=list,
@@ -138,6 +143,12 @@ class CampaignCreateRequest(BaseModel):
 
 class CampaignUpdateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+
+
+class CampaignQualityUpdateRequest(BaseModel):
+    quality_override: QualityPreset | None = Field(
+        description="NULL means inherit the global preset from Settings.",
+    )
 
 
 class TalkingHeadAssignRequest(BaseModel):
@@ -394,6 +405,71 @@ class GenerateVideosRequest(BaseModel):
             "Re-render All: enqueue every eligible recording regardless of "
             "last-rendered state. When false, skip recordings whose "
             "last_rendered_cache_key still matches the current campaign cache key."
+        ),
+    )
+
+
+class StagedOutputItem(BaseModel):
+    """One un-exported render sitting in workspace staging (ticket 23)."""
+
+    filename: str = Field(description="Output basename, e.g. ``Acme Corp.mp4``.")
+    size_bytes: int = Field(description="On-disk size in bytes.")
+
+
+class CampaignOutputsResponse(BaseModel):
+    """Campaign Outputs section — un-exported renders only."""
+
+    outputs: list[StagedOutputItem] = Field(
+        default_factory=list,
+        description="Final ``.mp4`` files in staging; partial ``.part.mp4`` siblings are excluded.",
+    )
+    exportable_count: int = Field(
+        description=(
+            "Completed ``video_render`` jobs whose output file exists and would "
+            "move on Export All. Mid-batch, waiting/encoding jobs are excluded."
+        )
+    )
+    default_export_path: str | None = Field(
+        default=None,
+        description=(
+            "Folder picker seed: the campaign's last export destination, else the "
+            "global default from Settings."
+        ),
+    )
+    total_size_bytes: int = Field(description="Combined size of staged output files in bytes.")
+
+
+class ExportAllRequest(BaseModel):
+    destination_path: str = Field(
+        min_length=1,
+        description="Absolute path to an existing folder. Files are moved here, never copied.",
+    )
+
+
+class ExportFailure(BaseModel):
+    filename: str = Field(description="Basename of the file that could not be moved.")
+    reason: str = Field(description="Plain-language reason the move failed.")
+
+
+class ExportAllResponse(BaseModel):
+    destination_path: str
+    moved_count: int = Field(description="Files successfully moved out of staging.")
+    moved_filenames: list[str] = Field(
+        default_factory=list,
+        description="Basenames of files that moved.",
+    )
+    conflicts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Basenames refused because a file with the same name already exists "
+            "at the destination. The rest of the batch still exports."
+        ),
+    )
+    failures: list[ExportFailure] = Field(
+        default_factory=list,
+        description=(
+            "Basenames whose move failed (e.g. permission or disk error). "
+            "The staging file and queue row are left intact."
         ),
     )
 

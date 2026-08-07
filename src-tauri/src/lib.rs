@@ -11,6 +11,7 @@ mod diagnostics;
 mod logging;
 mod paths;
 mod pointer;
+mod relocation;
 mod sidecar;
 mod window;
 mod workspace;
@@ -86,6 +87,7 @@ pub fn run() {
             commands::validate_workspace,
             commands::set_workspace,
             commands::forget_workspace,
+            commands::relocate_workspace,
             commands::read_log_tail,
             commands::open_logs_folder,
             commands::log_client_error,
@@ -129,16 +131,22 @@ pub fn run() {
     };
 
     app.run(move |handle, event| {
-        if matches!(event, RunEvent::Exit) {
-            // Q38's Job Object would kill the sidecar regardless, but only
-            // abruptly. Going through stdin EOF gives Python the shutdown
-            // sequence in Q118 — release the SSE streams, stop uvicorn, remove
-            // `.oos-lock`, flush the log — which is what stops the *next*
-            // launch from finding a stale lock it has to reason about.
-            if let Some(machine) = handle.try_state::<Arc<BootMachine>>() {
-                tracing::info!("shutting down");
-                machine.shutdown();
+        match event {
+            // ExitRequested fires before teardown begins — start the graceful
+            // sidecar shutdown here so it overlaps the window closing rather
+            // than racing the process exit.
+            RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+                // Q38's Job Object would kill the sidecar regardless, but only
+                // abruptly. Going through stdin EOF gives Python the shutdown
+                // sequence in Q118 — release the SSE streams, stop uvicorn,
+                // remove `.oos-lock`, flush the log — which is what stops the
+                // *next* launch from finding a stale lock it has to reason about.
+                if let Some(machine) = handle.try_state::<Arc<BootMachine>>() {
+                    tracing::info!("shutting down");
+                    machine.shutdown();
+                }
             }
+            _ => {}
         }
     });
 

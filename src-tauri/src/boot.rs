@@ -426,6 +426,10 @@ impl BootMachine {
     }
 
     /// Stop the sidecar. Called when the last window closes.
+    ///
+    /// Idempotent: a second call finds no session. Does not touch boot state —
+    /// `ExitRequested` and `Exit` both call this, and relocation uses
+    /// `stop_backend_sync` when it needs the StartingBackend reset.
     pub fn shutdown(&self) {
         let session = self
             .session
@@ -436,6 +440,39 @@ impl BootMachine {
         if let Some(session) = session {
             session.sidecar.shutdown();
         }
+    }
+
+    /// Gracefully stop the sidecar and clear the session.
+    ///
+    /// Used before workspace relocation so SQLite and `.oos-lock` are released
+    /// before files are copied. Blocks until the process exits or the grace
+    /// period elapses, then resets boot state for the restart that follows.
+    pub fn stop_backend_sync(&self) {
+        self.shutdown();
+
+        self.set(|state| {
+            state.phase = BootPhase::StartingBackend;
+            state.status = "Preparing workspace…".to_owned();
+            state.port = None;
+            state.diagnostic = None;
+        });
+    }
+
+    /// Publish a terminal failure without changing the workspace pointer.
+    pub fn fail_with_diagnostic(&self, diagnostic: Diagnostic, workspace_path: Option<String>) {
+        tracing::error!(
+            code = ?diagnostic.code,
+            detail = diagnostic.detail.as_deref().unwrap_or("-"),
+            "boot failed: {}",
+            diagnostic.message
+        );
+        self.set(|state| {
+            state.phase = BootPhase::Failed;
+            state.status = diagnostic.message.clone();
+            state.workspace_path = workspace_path;
+            state.port = None;
+            state.diagnostic = Some(diagnostic);
+        });
     }
 }
 

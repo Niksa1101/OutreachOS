@@ -9,10 +9,11 @@ from sqlalchemy.orm import Session
 
 from outreachos_backend.core import migrate
 from outreachos_backend.core.db import Database
-from outreachos_backend.core.enums import AssetRole, ProbeStatus
+from outreachos_backend.core.enums import AssetRole, JobStatus, JobType, ProbeStatus
+from outreachos_backend.core.errors import ApiError
 from outreachos_backend.core.events import EventBus
 from outreachos_backend.core.workspace import WorkspaceLayout
-from outreachos_backend.modules.video_composer.models import Campaign, MediaAsset
+from outreachos_backend.modules.video_composer.models import Campaign, MediaAsset, RenderJob
 from outreachos_backend.modules.video_composer.service import (
     _existing_campaign_paths,
     _preview_frame_timestamp_ms,
@@ -86,7 +87,7 @@ def test_existing_campaign_paths_includes_talking_head(
 
 
 def test_update_recording_sets_and_clears_name_auto_suffixed(
-    session: Session, campaign: Campaign
+    session: Session, campaign: Campaign, tmp_workspace: WorkspaceLayout
 ) -> None:
     session.add(
         MediaAsset(
@@ -128,6 +129,7 @@ def test_update_recording_sets_and_clears_name_auto_suffixed(
 
     updated = update_recording(
         session,
+        tmp_workspace,
         campaign.id,
         recording.id,
         company_name="Acme Corp",
@@ -139,6 +141,7 @@ def test_update_recording_sets_and_clears_name_auto_suffixed(
 
     cleared = update_recording(
         session,
+        tmp_workspace,
         campaign.id,
         recording.id,
         company_name="Unique Name",
@@ -147,6 +150,83 @@ def test_update_recording_sets_and_clears_name_auto_suffixed(
     row = session.get(MediaAsset, recording.id)
     assert row is not None
     assert row.name_auto_suffixed == 0
+
+
+def test_update_recording_rename_failure_leaves_db_and_disk_consistent(
+    session: Session,
+    campaign: Campaign,
+    tmp_workspace: WorkspaceLayout,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_workspace.outputs / campaign.id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / "Beta Inc.mp4"
+    output_file.write_bytes(b"staged-output")
+
+    recording = MediaAsset(
+        campaign_id=campaign.id,
+        role=AssetRole.SCREEN_RECORDING.value,
+        source_path="C:/videos/beta.mp4",
+        source_filename="beta.mp4",
+        company_name="Beta Inc",
+        output_basename="Beta Inc",
+        sort_order=0,
+        probe_status=ProbeStatus.OK.value,
+        duration_ms=5000,
+        width=640,
+        height=360,
+        fps=30.0,
+        video_codec="h264",
+        has_audio=0,
+        last_rendered_at="2026-01-01T00:00:00Z",
+    )
+    session.add(recording)
+    session.flush()
+    job = RenderJob(
+        campaign_id=campaign.id,
+        asset_id=recording.id,
+        job_type=JobType.VIDEO_RENDER.value,
+        status=JobStatus.COMPLETED.value,
+        queue_position=1,
+        output_path=output_file.relative_to(tmp_workspace.root).as_posix(),
+        output_filename=output_file.name,
+        finished_at="2026-01-01T00:00:00Z",
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(recording)
+    session.refresh(job)
+
+    original_rename = Path.rename
+
+    def failing_rename(self: Path, target: Path) -> Path:
+        raise OSError("Access is denied")
+
+    monkeypatch.setattr(Path, "rename", failing_rename)
+
+    with pytest.raises(ApiError) as exc_info:
+        update_recording(
+            session,
+            tmp_workspace,
+            campaign.id,
+            recording.id,
+            company_name="Gamma LLC",
+        )
+
+    assert exc_info.value.code.value == "workspace_error"
+    assert output_file.is_file()
+    assert output_file.read_bytes() == b"staged-output"
+    assert not (output_dir / "Gamma LLC.mp4").exists()
+
+    session.refresh(recording)
+    session.refresh(job)
+    assert recording.company_name == "Beta Inc"
+    assert recording.output_basename == "Beta Inc"
+    assert recording.last_rendered_at == "2026-01-01T00:00:00Z"
+    assert job.output_path == output_file.relative_to(tmp_workspace.root).as_posix()
+    assert job.output_filename == "Beta Inc.mp4"
+
+    monkeypatch.setattr(Path, "rename", original_rename)
 
 
 def test_duplicate_warning_emitted_from_persisted_flag_only() -> None:

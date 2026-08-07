@@ -20,7 +20,11 @@ from outreachos_backend.modules.video_composer.schemas import (
     CampaignDeletePreview,
     CampaignDetail,
     CampaignListResponse,
+    CampaignOutputsResponse,
+    CampaignQualityUpdateRequest,
     CampaignUpdateRequest,
+    ExportAllRequest,
+    ExportAllResponse,
     GeneratePlanResponse,
     GenerateVideosRequest,
     GenerateVideosResponse,
@@ -92,6 +96,20 @@ def rename_campaign(
     session: Annotated[Session, Depends(get_session)],
 ) -> CampaignDetail:
     return service.rename_campaign(session, campaign_id, body.name)
+
+
+@router.patch("/campaigns/{campaign_id}/quality", summary="Set the campaign quality override")
+def update_campaign_quality(
+    campaign_id: str,
+    body: CampaignQualityUpdateRequest,
+    session: Annotated[Session, Depends(get_session)],
+) -> CampaignDetail:
+    override = body.quality_override.value if body.quality_override is not None else None
+    return service.update_campaign_quality(
+        session,
+        campaign_id,
+        quality_override=override,
+    )
 
 
 @router.put(
@@ -175,9 +193,11 @@ def update_recording(
     recording_id: str,
     body: RecordingUpdateRequest,
     session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
 ) -> RecordingDetail:
     return service.update_recording(
         session,
+        workspace,
         campaign_id,
         recording_id,
         company_name=body.company_name,
@@ -242,6 +262,38 @@ def preview_delete_campaign(
     workspace: WorkspaceDep,
 ) -> CampaignDeletePreview:
     return service.get_delete_preview(session, workspace, campaign_id)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/outputs",
+    summary="List un-exported renders in workspace staging",
+)
+def list_campaign_outputs(
+    campaign_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+) -> CampaignOutputsResponse:
+    return service.get_campaign_outputs(session, workspace, campaign_id)
+
+
+@router.post(
+    "/campaigns/{campaign_id}/export",
+    summary="Move completed renders out of staging to a destination folder",
+)
+def export_campaign_outputs(
+    campaign_id: str,
+    body: ExportAllRequest,
+    session: Annotated[Session, Depends(get_session)],
+    workspace: WorkspaceDep,
+    event_bus: EventBusDep,
+) -> ExportAllResponse:
+    return service.export_all(
+        session,
+        workspace,
+        event_bus,
+        campaign_id,
+        destination_path=body.destination_path,
+    )
 
 
 @router.delete(

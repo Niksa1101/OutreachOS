@@ -39,6 +39,8 @@ the spec is never edited in place.
 | [0012](0012-local-media-transport.md)         | Local media transport — Tauri asset protocol                | Accepted                                      |
 | [0013](0013-css-pillow-shadow-calibration.md) | CSS `box-shadow` blur maps 1:1 to Pillow Gaussian blur      | Accepted                                      |
 | [0014](0014-outputs-staging-layout.md)        | Outputs staging layout — `outputs/<campaign_id>/…`          | Accepted                                      |
+| [0015](0015-quality-encoder-lock-during-queue-activity.md) | Lock quality, encoder, and cache during queue activity | Accepted                                      |
+| [0016](0016-pyinstaller-freezing-outcome.md)  | PyInstaller freezing outcome — viable, no embedded runtime  | Accepted — records PRD §9 risk 5              |
 
 ## Superseded specification sections
 

@@ -12,7 +12,10 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager, State};
 
 use crate::boot::{BackendInfo, BootMachine, BootState, SpawnFlags};
+use crate::diagnostics::{Diagnostic, DiagnosticCode};
 use crate::logging::CLIENT_TARGET;
+use crate::relocation::{self, RelocateError, RelocateMode};
+use crate::sidecar;
 use crate::workspace::WorkspaceValidation;
 use crate::{paths, pointer, window, workspace};
 
@@ -146,6 +149,93 @@ pub fn forget_workspace(
     // step with the guard.
     machine.start();
     Ok(())
+}
+
+/// Ticket 26: change where the workspace lives.
+///
+/// The pointer is updated only after the file operation succeeds; on failure
+/// the original workspace is kept and a diagnostic is shown.
+#[tauri::command]
+pub fn relocate_workspace(
+    app: AppHandle,
+    machine: State<'_, Arc<BootMachine>>,
+    target_path: String,
+    mode: RelocateMode,
+) -> Result<(), String> {
+    let Some(current) = pointer::read(&app) else {
+        return Err(RelocateError::NoCurrentWorkspace.message());
+    };
+
+    if let Some(info) = machine.backend_info() {
+        match sidecar::probe_queue_activity(info.port, &info.token) {
+            Ok(count) if count > 0 => {
+                let jobs = if count == 1 { "job is" } else { "jobs are" };
+                return Err(format!(
+                    "Relocation is unavailable while {count} {jobs} waiting or in progress in the render queue."
+                ));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                return Err(format!(
+                    "Could not verify the render queue is idle: {error}"
+                ));
+            }
+        }
+    }
+
+    let validation = match relocation::validate_relocation(&current, Path::new(&target_path), mode)
+    {
+        Ok(validation) => validation,
+        Err(error) => return Err(error.message()),
+    };
+
+    let target = PathBuf::from(&validation.path);
+    let source = PathBuf::from(&current);
+
+    tracing::info!(
+        from = %source.display(),
+        to = %target.display(),
+        ?mode,
+        "workspace relocation requested"
+    );
+
+    // Deliberate TOCTOU: a job could enqueue between `probe_queue_activity`
+    // above and this stop. Relocation is user-initiated from Settings, the
+    // window is milliseconds, and the Settings screen already gates on queue
+    // activity via `queue_has_activity`. A backend-side relocation lock would
+    // be disproportionate for this edge case.
+    machine.stop_backend_sync();
+
+    match relocation::apply_relocation(&source, &target, mode) {
+        Ok(()) => {
+            pointer::write(&app, &validation.path)?;
+            machine.start();
+            Ok(())
+        }
+        Err(error) => {
+            tracing::error!(?error, "workspace relocation failed");
+            relocation::remove_tree_best_effort(&target);
+
+            let detail = format!(
+                "Original workspace (still in use):\n{current}\n\n\
+                 Attempted location:\n{}\n\n\
+                 Cause: {}",
+                validation.path,
+                error.message()
+            );
+
+            machine.fail_with_diagnostic(
+                Diagnostic::new(
+                    DiagnosticCode::WorkspaceRelocationFailed,
+                    "The workspace could not be moved.",
+                )
+                .with_detail(detail),
+                Some(current),
+            );
+
+            Err(error.message())
+        }
+    }
 }
 
 /* -------------------------------------------------------------------------- */

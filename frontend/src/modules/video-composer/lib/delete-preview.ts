@@ -1,19 +1,8 @@
 /** Human-readable byte counts for delete confirmation line items. */
 
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+import { formatBytes, plural } from '@/core/lib/format';
 
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** exponent;
-  const formatted = value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1);
-
-  return `${formatted} ${units[exponent]}`;
-}
-
-function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
-  return count === 1 ? singular : pluralForm;
-}
+export { formatBytes, plural };
 
 export function describeCampaignData(
   assetCount: number,
@@ -44,7 +33,15 @@ export function describeAlphaClip(present: boolean, sizeBytes: number | null | u
   return `Cached alpha clip (${formatBytes(sizeBytes ?? 0)})`;
 }
 
-export function describeOutputs(count: number, totalSizeBytes: number): string {
-  if (count === 0) return 'No un-exported outputs';
-  return `${count} un-exported ${plural(count, 'output')} (${formatBytes(totalSizeBytes)})`;
+export function describeOutputs(
+  count: number,
+  totalSizeBytes: number,
+  noun: 'output' | 'render' = 'output',
+): string {
+  if (count === 0) {
+    return noun === 'render'
+      ? 'No un-exported renders in staging.'
+      : 'No un-exported outputs';
+  }
+  return `${count} un-exported ${plural(count, noun)} (${formatBytes(totalSizeBytes)})`;
 }

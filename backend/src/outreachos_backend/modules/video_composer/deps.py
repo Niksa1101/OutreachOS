@@ -1,14 +1,13 @@
 """Video Composer request dependencies."""
 
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
+from outreachos_backend.core.deps import WorkspaceDep, get_workspace
 from outreachos_backend.core.errors import ApiError, ApiErrorCode
 from outreachos_backend.core.events import EventBus
-from outreachos_backend.core.workspace import WorkspaceLayout
 from outreachos_backend.rendering.binaries import Binaries, resolve_binaries
 from outreachos_backend.rendering.queue.pool import WorkerPool
 
@@ -22,10 +21,6 @@ __all__ = [
     "get_worker_pool",
     "get_workspace",
 ]
-
-
-def get_workspace(request: Request) -> WorkspaceLayout:
-    return WorkspaceLayout(root=Path(request.app.state.runtime.report.workspace_path))
 
 
 def get_binaries(request: Request) -> Binaries:
@@ -55,7 +50,6 @@ def get_worker_pool(request: Request) -> WorkerPool[str, Session] | None:
     return getattr(request.app.state, "worker_pool", None)
 
 
-WorkspaceDep = Annotated[WorkspaceLayout, Depends(get_workspace)]
 BinariesDep = Annotated[Binaries, Depends(get_binaries)]
 EventBusDep = Annotated[EventBus, Depends(get_event_bus)]
 WorkerPoolDep = Annotated["WorkerPool[str, Session] | None", Depends(get_worker_pool)]

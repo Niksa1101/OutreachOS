@@ -22,11 +22,11 @@ from sqlalchemy.orm import Session
 
 from outreachos_backend.core.enums import AssetRole, JobStatus, JobType
 from outreachos_backend.core.events import EventBus
+from outreachos_backend.core.settings_service import resolve_encoder_override, resolve_quality
 from outreachos_backend.core.timeutil import utcnow_iso
 from outreachos_backend.core.workspace import WorkspaceLayout
 from outreachos_backend.modules.video_composer.models import Campaign, MediaAsset, RenderJob
 from outreachos_backend.modules.video_composer.service import (
-    PRE_SETTINGS_DEFAULT_QUALITY_PRESET,
     batch_event_payload,
     job_event_payload,
 )
@@ -173,12 +173,12 @@ def _talking_head_config(talking_head: MediaAsset) -> TalkingHeadConfig:
     )
 
 
-def _quality_for(campaign: Campaign) -> QualityPreset:
-    match campaign.quality_override:
-        case "draft" | "standard" | "high" as quality:
-            return quality
-        case _:
-            return PRE_SETTINGS_DEFAULT_QUALITY_PRESET
+def _quality_for(session: Session, campaign: Campaign) -> QualityPreset:
+    return resolve_quality(session, quality_override=campaign.quality_override)
+
+
+def _encoder_for(session: Session) -> str | None:
+    return resolve_encoder_override(session)
 
 
 def _publish_status(
@@ -339,7 +339,8 @@ def _run_alpha_prepare(
         talking_head=_talking_head_config(talking_head),
         overlay=_overlay_config(campaign),
         recordings=[],
-        quality=_quality_for(campaign),
+        quality=_quality_for(session, campaign),
+        encoder=_encoder_for(session),
         owner_ref=campaign.id,
         owner_kind="campaign",
     )
@@ -411,7 +412,8 @@ def _run_video_render(
                 output_basename=output_basename or asset.id,
             )
         ],
-        quality=_quality_for(campaign),
+        quality=_quality_for(session, campaign),
+        encoder=_encoder_for(session),
         owner_ref=campaign.id,
         owner_kind="campaign",
     )

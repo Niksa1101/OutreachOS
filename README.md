@@ -70,6 +70,8 @@ uv sync --directory backend
 | `pnpm typecheck`    | `tsc --noEmit` + mypy strict                         |
 | `pnpm test`         | Vitest + pytest                                      |
 | `pnpm build`        | Typecheck and build the frontend                     |
+| `pnpm build:sidecar`| Freeze the Python backend with PyInstaller (Windows) |
+| `pnpm build:installer` | Stage resources and build the Windows NSIS installer |
 | `pnpm format`       | Prettier (TS/JS/MD) + Ruff format (Python)           |
 | `pnpm sync-version` | Propagate the root `package.json` version everywhere |
 
@@ -95,6 +97,26 @@ docs/         Decision records and verification checklist
 
 Rust is deliberately thin — a shell, not a third business-logic layer. The
 frontend never executes FFmpeg; Python owns all rendering.
+
+---
+
+## Release packaging (P6)
+
+Release builds are **manual** (PRD §8). On Windows:
+
+```powershell
+pnpm build:sidecar      # PyInstaller onedir + frozen smoke tests
+pnpm build:installer    # frontend + stage sidecar/FFmpeg + NSIS installer
+```
+
+A bare `pnpm tauri build` without staging fails at bundle time (`ResourcePathNotFound`) — use `build:installer`, which runs `stage-bundle-resources.ps1` first.
+
+FFmpeg is fetched into `vendor/ffmpeg/` by `scripts/fetch-ffmpeg.ps1` (pinned,
+SHA256-verified, GPL static build per ADR-0007). Licensing attribution lives in
+[`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
+
+See [`docs/decisions/0016-pyinstaller-freezing-outcome.md`](docs/decisions/0016-pyinstaller-freezing-outcome.md)
+for the PyInstaller outcome and hidden-import notes.
 
 ---
 

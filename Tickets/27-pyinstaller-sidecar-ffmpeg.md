@@ -8,12 +8,12 @@ Note: this ticket is technically independent of the P2–P5 feature work, but is
 
 **Blocked by:** 26 — Workspace relocation.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The backend builds to a sidecar executable that starts, binds a free port, runs migrations, and serves the API
-- [ ] The frozen build works with no Python installed on the machine
-- [ ] FFmpeg and FFprobe are bundled as static binaries and resolved by bundled path, with PATH explicitly not consulted
-- [ ] Licensing attribution for the bundled binaries ships with the application
-- [ ] A render runs successfully end to end using the bundled binaries from the frozen backend
-- [ ] The build is reproducible from a documented command and runs in CI or is documented as a manual release step
-- [ ] The outcome of the freezing risk is recorded as an ADR, including any hidden-imports tuning or a fallback decision
+- [x] The backend builds to a sidecar executable that starts, binds a free port, runs migrations, and serves the API
+- [x] The frozen build works with no Python installed on the machine
+- [x] FFmpeg and FFprobe are bundled as static binaries and resolved by bundled path, with PATH explicitly not consulted
+- [x] Licensing attribution for the bundled binaries ships with the application
+- [x] A render runs successfully end to end using the bundled binaries from the frozen backend
+- [x] The build is reproducible from a documented command and runs in CI or is documented as a manual release step
+- [x] The outcome of the freezing risk is recorded as an ADR, including any hidden-imports tuning or a fallback decision

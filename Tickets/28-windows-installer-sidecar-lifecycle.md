@@ -6,12 +6,12 @@ In the packaged build the sidecar lifecycle has to be correct, not merely usuall
 
 **Blocked by:** 27 — PyInstaller sidecar and bundled FFmpeg.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] The Windows installer builds and produces an installed, launchable application
-- [ ] Application identity and icon are correct in the installer, the executable, and the taskbar
-- [ ] The packaged app starts its sidecar and waits on a health check before presenting the UI
-- [ ] Closing the app shuts the sidecar down gracefully
-- [ ] Force-quitting the main window leaves no orphaned backend process
-- [ ] Single-instance enforcement still works in the packaged build — a second launch focuses the first
-- [ ] Uninstalling removes the application without touching the user's workspace
+- [x] The Windows installer builds and produces an installed, launchable application
+- [x] Application identity and icon are correct in the installer, the executable, and the taskbar
+- [x] The packaged app starts its sidecar and waits on a health check before presenting the UI
+- [x] Closing the app shuts the sidecar down gracefully
+- [x] Force-quitting the main window leaves no orphaned backend process
+- [x] Single-instance enforcement still works in the packaged build — a second launch focuses the first
+- [x] Uninstalling removes the application without touching the user's workspace

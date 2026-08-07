@@ -6,12 +6,12 @@ Relocation is blocked outright while any queue activity exists, with a stated re
 
 **Blocked by:** 25 — Settings: quality, encoder, cache, export folder.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Changing the workspace offers Move existing and Start fresh as an explicit choice
-- [ ] Move existing brings the database, caches, and staged outputs to the new location intact
-- [ ] Start fresh leaves the old workspace untouched on disk and initialises a new one
-- [ ] The backend restarts cleanly against the new location and the app reconnects without a manual relaunch
-- [ ] Relocation is refused while any queue activity exists, with a stated reason
-- [ ] The workspace pointer in OS app-data is updated only after the move succeeds, so a failed move cannot leave the app pointing at nothing
-- [ ] A failed or interrupted move surfaces on the diagnostics screen with a route back to a working workspace
+- [x] Changing the workspace offers Move existing and Start fresh as an explicit choice
+- [x] Move existing brings the database, caches, and staged outputs to the new location intact
+- [x] Start fresh leaves the old workspace untouched on disk and initialises a new one
+- [x] The backend restarts cleanly against the new location and the app reconnects without a manual relaunch
+- [x] Relocation is refused while any queue activity exists, with a stated reason
+- [x] The workspace pointer in OS app-data is updated only after the move succeeds, so a failed move cannot leave the app pointing at nothing
+- [x] A failed or interrupted move surfaces on the diagnostics screen with a route back to a working workspace

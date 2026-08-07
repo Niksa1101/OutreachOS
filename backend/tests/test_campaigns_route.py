@@ -6,10 +6,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from outreachos_backend.core import migrate
 from outreachos_backend.core.db import Database
-from outreachos_backend.core.enums import AssetRole, ProbeStatus
+from outreachos_backend.core.enums import AssetRole, JobStatus, JobType, ProbeStatus
 from outreachos_backend.core.workspace import WorkspaceLayout
 from outreachos_backend.modules.video_composer.models import Campaign, MediaAsset, RenderJob
 from outreachos_backend.rendering.config import OverlayConfig, SizeConfig
@@ -768,6 +769,288 @@ async def test_update_recording_rejects_empty_company_name(
 
     assert response.status_code == 422
     assert response.json()["error"]["message"] == "A company name cannot be empty."
+
+
+def _seed_staged_recording(
+    session: Session,
+    tmp_workspace: WorkspaceLayout,
+    campaign_id: str,
+    *,
+    company_name: str,
+    sort_order: int = 0,
+    source_path: str | None = None,
+    output_bytes: bytes = b"staged-output",
+    last_rendered_at: str = "2026-01-01T00:00:00Z",
+) -> tuple[MediaAsset, RenderJob, Path]:
+    output_dir = tmp_workspace.outputs / campaign_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / f"{company_name}.mp4"
+    output_file.write_bytes(output_bytes)
+
+    resolved_source = source_path or f"C:/videos/{company_name.lower().replace(' ', '_')}.mp4"
+
+    asset = MediaAsset(
+        campaign_id=campaign_id,
+        role=AssetRole.SCREEN_RECORDING.value,
+        source_path=resolved_source,
+        source_filename=Path(resolved_source).name,
+        company_name=company_name,
+        output_basename=company_name,
+        sort_order=sort_order,
+        probe_status=ProbeStatus.OK.value,
+        duration_ms=2000,
+        width=640,
+        height=480,
+        fps=30.0,
+        video_codec="h264",
+        has_audio=0,
+        last_rendered_at=last_rendered_at,
+    )
+    session.add(asset)
+    session.flush()
+
+    job = RenderJob(
+        campaign_id=campaign_id,
+        asset_id=asset.id,
+        job_type=JobType.VIDEO_RENDER.value,
+        status=JobStatus.COMPLETED.value,
+        queue_position=sort_order + 1,
+        output_path=output_file.relative_to(tmp_workspace.root).as_posix(),
+        output_filename=output_file.name,
+        finished_at=last_rendered_at,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(asset)
+    session.refresh(job)
+    return asset, job, output_file
+
+
+async def test_update_recording_renames_staged_output_on_disk(
+    app_with_database: FastAPI,
+    tmp_workspace: WorkspaceLayout,
+) -> None:
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Rename output"})).json()
+        campaign_id = created["id"]
+
+    database = app_with_database.state.database
+    with database.session_factory() as session:
+        recording, job, output_file = _seed_staged_recording(
+            session,
+            tmp_workspace,
+            campaign_id,
+            company_name="Beta Inc",
+        )
+        recording_id = recording.id
+        job_id = job.id
+
+    async with await client_for(app_with_database) as client:
+        body = (
+            await client.patch(
+                f"/campaigns/{campaign_id}/recordings/{recording_id}",
+                json={"company_name": "Gamma LLC"},
+            )
+        ).json()
+
+    assert body["company_name"] == "Gamma LLC"
+    assert body["output_basename"] == "Gamma LLC"
+    assert not output_file.is_file()
+    renamed = tmp_workspace.outputs / campaign_id / "Gamma LLC.mp4"
+    assert renamed.is_file()
+    assert renamed.read_bytes() == b"staged-output"
+
+    with database.session_factory() as session:
+        refreshed_job = session.get(RenderJob, job_id)
+        refreshed_recording = session.get(MediaAsset, recording_id)
+        assert refreshed_job is not None
+        assert refreshed_job.output_path == f"outputs/{campaign_id}/Gamma LLC.mp4"
+        assert refreshed_job.output_filename == "Gamma LLC.mp4"
+        assert refreshed_recording is not None
+        assert refreshed_recording.last_rendered_at == "2026-01-01T00:00:00Z"
+
+
+async def test_update_recording_reports_error_when_disk_rename_fails(
+    app_with_database: FastAPI,
+    tmp_workspace: WorkspaceLayout,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Rename fail"})).json()
+        campaign_id = created["id"]
+
+    database = app_with_database.state.database
+    with database.session_factory() as session:
+        recording, job, output_file = _seed_staged_recording(
+            session,
+            tmp_workspace,
+            campaign_id,
+            company_name="Beta Inc",
+        )
+        recording_id = recording.id
+        job_id = job.id
+
+    def fail_rename(_self: Path, _target: Path) -> None:
+        raise OSError("access denied")
+
+    monkeypatch.setattr(Path, "rename", fail_rename)
+
+    async with await client_for(app_with_database) as client:
+        response = await client.patch(
+            f"/campaigns/{campaign_id}/recordings/{recording_id}",
+            json={"company_name": "Gamma LLC"},
+        )
+
+    assert response.status_code == 500
+    assert output_file.is_file()
+
+    with database.session_factory() as session:
+        refreshed_job = session.get(RenderJob, job_id)
+        refreshed_recording = session.get(MediaAsset, recording_id)
+        assert refreshed_job is not None
+        assert refreshed_job.output_filename == "Beta Inc.mp4"
+        assert refreshed_recording is not None
+        assert refreshed_recording.company_name == "Beta Inc"
+        assert refreshed_recording.last_rendered_at == "2026-01-01T00:00:00Z"
+
+
+async def test_update_recording_rolls_back_disk_rename_when_commit_fails(
+    app_with_database: FastAPI,
+    tmp_workspace: WorkspaceLayout,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Commit fail"})).json()
+        campaign_id = created["id"]
+
+    database = app_with_database.state.database
+    with database.session_factory() as session:
+        recording, job, output_file = _seed_staged_recording(
+            session,
+            tmp_workspace,
+            campaign_id,
+            company_name="Beta Inc",
+        )
+        recording_id = recording.id
+        job_id = job.id
+
+    def fail_commit(self: Session) -> None:
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr("sqlalchemy.orm.Session.commit", fail_commit)
+
+    transport = ASGITransport(app=app_with_database, raise_app_exceptions=False)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://127.0.0.1/api/v1",
+        headers={"Authorization": f"Bearer {TEST_TOKEN}"},
+    ) as client:
+        response = await client.patch(
+            f"/campaigns/{campaign_id}/recordings/{recording_id}",
+            json={"company_name": "Gamma LLC"},
+        )
+
+    assert response.status_code == 500
+    assert output_file.is_file()
+    assert not (output_file.parent / "Gamma LLC.mp4").exists()
+
+    with database.session_factory() as session:
+        refreshed_job = session.get(RenderJob, job_id)
+        refreshed_recording = session.get(MediaAsset, recording_id)
+        assert refreshed_job is not None
+        assert refreshed_job.output_filename == "Beta Inc.mp4"
+        assert refreshed_recording is not None
+        assert refreshed_recording.company_name == "Beta Inc"
+
+
+async def test_update_recording_rename_resolves_staged_output_collision(
+    app_with_database: FastAPI,
+    tmp_workspace: WorkspaceLayout,
+) -> None:
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Collision"})).json()
+        campaign_id = created["id"]
+
+    database = app_with_database.state.database
+    with database.session_factory() as session:
+        _seed_staged_recording(
+            session,
+            tmp_workspace,
+            campaign_id,
+            company_name="Acme Corp",
+            sort_order=0,
+            output_bytes=b"acme",
+        )
+        recording, _, beta_file = _seed_staged_recording(
+            session,
+            tmp_workspace,
+            campaign_id,
+            company_name="Beta Inc",
+            sort_order=1,
+            output_bytes=b"beta",
+        )
+        recording_id = recording.id
+
+    async with await client_for(app_with_database) as client:
+        body = (
+            await client.patch(
+                f"/campaigns/{campaign_id}/recordings/{recording_id}",
+                json={"company_name": "Acme Corp"},
+            )
+        ).json()
+
+    assert body["company_name"] == "Acme Corp (2)"
+    assert body["output_basename"] == "Acme Corp (2)"
+    assert (tmp_workspace.outputs / campaign_id / "Acme Corp.mp4").read_bytes() == b"acme"
+    assert not beta_file.is_file()
+    assert (tmp_workspace.outputs / campaign_id / "Acme Corp (2).mp4").read_bytes() == b"beta"
+
+
+async def test_update_recording_without_staged_output_updates_basename_only(
+    app_with_database: FastAPI,
+    tmp_workspace: WorkspaceLayout,
+) -> None:
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "No output"})).json()
+        campaign_id = created["id"]
+
+    database = app_with_database.state.database
+    with database.session_factory() as session:
+        asset = MediaAsset(
+            campaign_id=campaign_id,
+            role=AssetRole.SCREEN_RECORDING.value,
+            source_path="C:/videos/unrendered.mp4",
+            source_filename="unrendered.mp4",
+            company_name="Old Name",
+            output_basename="Old Name",
+            sort_order=0,
+            probe_status=ProbeStatus.OK.value,
+            duration_ms=2000,
+            width=640,
+            height=480,
+            fps=30.0,
+            video_codec="h264",
+            has_audio=0,
+        )
+        session.add(asset)
+        session.commit()
+        session.refresh(asset)
+        recording_id = asset.id
+
+    output_dir = tmp_workspace.outputs / campaign_id
+    assert not output_dir.exists()
+
+    async with await client_for(app_with_database) as client:
+        body = (
+            await client.patch(
+                f"/campaigns/{campaign_id}/recordings/{recording_id}",
+                json={"company_name": "Future Name"},
+            )
+        ).json()
+
+    assert body["company_name"] == "Future Name"
+    assert body["output_basename"] == "Future Name"
+    assert not output_dir.exists()
 
 
 async def test_delete_recording_removes_reference_but_not_source_file(
@@ -1556,6 +1839,25 @@ async def test_locked_campaign_rejects_overlay_updates(app_with_database: FastAP
         created = (await client.post("/campaigns", json={"name": "Locked"})).json()
         _add_active_job(database, created["id"])
         response = await client.put(f"/campaigns/{created['id']}/overlay", json=overlay)
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["error"]["code"] == "conflict"
+    assert body["error"]["message"] == (
+        "Editing is locked while this campaign has queued or active render jobs."
+    )
+
+
+async def test_locked_campaign_rejects_quality_updates(app_with_database: FastAPI) -> None:
+    database = app_with_database.state.database
+
+    async with await client_for(app_with_database) as client:
+        created = (await client.post("/campaigns", json={"name": "Locked quality"})).json()
+        _add_active_job(database, created["id"])
+        response = await client.patch(
+            f"/campaigns/{created['id']}/quality",
+            json={"quality_override": "high"},
+        )
 
     assert response.status_code == 409
     body = response.json()

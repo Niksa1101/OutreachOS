@@ -1,7 +1,8 @@
 /**
  * What each diagnostics code means to a user, and what they can do about it.
  *
- * Q124 fixes the nine codes; this is the presentation layer over them. The
+ * Q124 fixes the nine original codes; ticket 29 adds `port_bind_failed`,
+ * `ffmpeg_missing`, and `ffmpeg_unrunnable`. This is the presentation layer over them. The
  * action set is the reason `workspace_locked` was not merged into
  * `workspace_unwritable`: they need different buttons, and a merge would either
  * offer "Take over" on a permissions failure or hide it on a lock.
@@ -79,6 +80,27 @@ const PRESENTATIONS: Record<DiagnosticCode, DiagnosticPresentation> = {
     actions: ['retry'],
     log: 'backend',
   },
+  port_bind_failed: {
+    title: 'The backend could not bind a local port',
+    explanation:
+      'OutreachOS could not open a loopback network port for its backend. Another program may be interfering, or the system may be out of available ports.',
+    actions: ['retry'],
+    log: 'backend',
+  },
+  ffmpeg_missing: {
+    title: 'The bundled video tools are missing',
+    explanation:
+      'OutreachOS could not find FFmpeg or FFprobe where the installer placed them. Reinstalling the application may restore them.',
+    actions: ['retry'],
+    log: 'backend',
+  },
+  ffmpeg_unrunnable: {
+    title: 'The bundled video tools could not be run',
+    explanation:
+      'FFmpeg or FFprobe is present but failed to start. The log below may show an antivirus block, a permissions problem, or corrupted binaries.',
+    actions: ['retry'],
+    log: 'backend',
+  },
   migration_failed: {
     title: 'The database could not be updated',
     explanation:
@@ -94,6 +116,13 @@ const PRESENTATIONS: Record<DiagnosticCode, DiagnosticPresentation> = {
     // way. Offering it would suggest the problem might resolve itself.
     actions: ['choose-workspace', 'forget-workspace'],
     log: 'backend',
+  },
+  workspace_relocation_failed: {
+    title: 'The workspace could not be moved',
+    explanation:
+      'OutreachOS stopped the backend and tried to switch workspace locations, but the move did not finish. Your original workspace is still the active one — nothing was pointed at the new folder.',
+    actions: ['retry', 'choose-workspace'],
+    log: 'boot',
   },
   unknown: UNRECOGNISED,
 };

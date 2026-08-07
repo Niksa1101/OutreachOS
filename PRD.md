@@ -1,7 +1,7 @@
 # OutreachOS — Product Requirements & Implementation Plan
 
 > **Status:** Specification locked. **P0 complete** (2026-08-04) · **P1 complete** (2026-08-05) ·
-> **P2, P3, P4 complete** (2026-08-07). **P5 (Export) is next.**
+> **P2, P3, P4, P5 complete** (2026-08-07). **P6 (Packaging) is next.**
 > **Version:** 1.0 (Video Composer)
 > **Target platform:** Windows 11 (code written cross-platform-clean)
 
@@ -406,19 +406,26 @@ current Generate / Retry instead of every historical row.
 
 ### P5 — Export
 
+**Status:** ✅ **Complete** (2026-08-07) — tickets 23–26.
+
 **Goal:** Get files out and reclaim the disk.
 
 **Deliverables**
 - Campaign Outputs staging view (un-exported renders only)
 - `Export All`: folder picker seeded from the default export folder, move-not-copy, confirmation stating the file count and destination
-- Overwrite refusal with conflict reporting
-- Completed jobs clear from the queue after successful export; failed jobs persist until dismissed
-- Company rename → output file rename on disk
+- Overwrite refusal with conflict reporting; per-file move failures reported without aborting the batch
+- Completed jobs clear from the queue after successful export; completed `alpha_prepare` clears with the campaign's last video job; failed jobs persist until dismissed
+- Company rename → output file rename on disk, with DB/disk consistency on failure
 - Settings: workspace location (Move / Start fresh + backend restart), global quality presets (Draft / Standard / High), per-campaign tri-state override, encoder override, cache size display + Clear Cache, FFmpeg version info, default export folder
+- Quality, encoder, and Clear Cache locked during global queue activity ([ADR-0015](docs/decisions/0015-quality-encoder-lock-during-queue-activity.md))
 
 **Exit criteria**
 - Export moves files, reclaims space, and leaves the queue clean
 - Workspace relocation correctly blocked during queue activity
+
+**Verification**
+- **Automated:** export move/clear/conflict/partial-failure/alpha-clear, rename-on-disk and rollback, settings queue lock, and workspace relocation queue probe covered by pytest (`test_export.py`, `test_campaigns_route.py`, `test_settings_route.py`, `test_settings_service.py`) and Vitest (`export.test.ts`); Rust queue probe in `sidecar.rs` unit tests
+- **Manual (dev mode):** Export All mid-batch, conflict refusal, rename without re-render, settings lock during queue activity, Move existing / Start fresh relocation, relocation failure diagnostic — see ticket 23–26 acceptance notes
 
 ---
 
@@ -478,7 +485,7 @@ These are **implementation risks with named fallbacks**, not open decisions. All
 
 Decisions resolved before each phase: **Q1–Q126 before P0**, **Q127–Q201 before P1** — full records in [`docs/decisions/`](docs/decisions/). Each phase must record any deviation as an ADR with its rationale.
 
-**ADRs to date:** 0001–0006 (P0) · 0007–0012 (P1) · 0013 (P3, shadow calibration) · 0014 (P4, outputs staging layout — settled here because P5's export and rename both depend on it).
+**ADRs to date:** 0001–0006 (P0) · 0007–0012 (P1) · 0013 (P3, shadow calibration) · 0014 (P4, outputs staging layout) · 0015 (P5, quality/encoder/cache lock during queue activity).
 
 Per-ticket scope for P2–P6 lives in [`Tickets/`](Tickets/), mapped to phases in [`Tickets/phases.md`](Tickets/phases.md).
 

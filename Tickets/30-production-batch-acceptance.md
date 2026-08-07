@@ -6,7 +6,7 @@ This is the V1 definition of done. Developer-mode success does not count. Every 
 
 **Blocked by:** 29 — Clean-machine validation.
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent — verification procedure in [`docs/p6-verification.md`](../docs/p6-verification.md); helper scripts in `scripts/verify-no-network.ps1` and `scripts/verify-batch-output.ps1`. Preflight packaging checks pass; full acceptance run requires real media kit on installed build.
 
 - [ ] A campaign of ~30 real prospect recordings is created, configured, and rendered in the packaged build
 - [ ] The generated videos match expected visual output on real footage, not just on synthetic fixtures

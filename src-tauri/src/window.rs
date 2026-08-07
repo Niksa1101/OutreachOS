@@ -346,6 +346,9 @@ mod tests {
         let raw = include_str!("../tauri.conf.json");
         let config: serde_json::Value = serde_json::from_str(raw).expect("tauri.conf.json parses");
 
+        assert_eq!(config["productName"].as_str(), Some("OutreachOS"));
+        assert_eq!(config["identifier"].as_str(), Some("com.outreachos.app"));
+
         let windows = config["app"]["windows"]
             .as_array()
             .expect("app.windows is an array");
@@ -374,5 +377,41 @@ mod tests {
             Some(false),
             "the main window must be created hidden (Q54)"
         );
+    }
+
+    /// Ticket 22's close guard registers `onCloseRequested`, and Tauri's JS API
+    /// then completes the close by invoking `window.destroy()` itself. Without
+    /// `core:window:allow-destroy` in the capability set the ACL rejects that
+    /// call and the packaged app cannot be closed at all — the X button becomes
+    /// inert and only Task Manager ends the process. `core:default` does *not*
+    /// grant it, and nothing fails until someone closes an installed build, so
+    /// pin both permissions the guard depends on here.
+    #[test]
+    fn close_guard_permissions_are_granted() {
+        let raw = include_str!("../capabilities/main.json");
+        let capability: serde_json::Value =
+            serde_json::from_str(raw).expect("capabilities/main.json parses");
+
+        let permissions: Vec<&str> = capability["permissions"]
+            .as_array()
+            .expect("permissions is an array")
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect();
+
+        assert!(
+            capability["windows"]
+                .as_array()
+                .is_some_and(|windows| windows.iter().any(|w| w == MAIN_WINDOW_LABEL)),
+            "the capability set must cover the `main` window"
+        );
+
+        for required in ["core:window:allow-destroy", "dialog:allow-ask"] {
+            assert!(
+                permissions.contains(&required),
+                "`{required}` is missing from capabilities/main.json — the \
+                 close-during-render guard fails at the ACL in a packaged build"
+            );
+        }
     }
 }

@@ -18,11 +18,12 @@ from outreachos_backend.core import migrate
 from outreachos_backend.core.db import Database
 from outreachos_backend.core.enums import AssetRole, JobStatus, JobType, ProbeStatus
 from outreachos_backend.core.events import EventBus
+from outreachos_backend.core.models import AppSettings
+from outreachos_backend.core.settings_service import resolve_quality
 from outreachos_backend.core.workspace import WorkspaceLayout
 from outreachos_backend.modules.video_composer import render_worker
 from outreachos_backend.modules.video_composer.models import Campaign, MediaAsset, RenderJob
 from outreachos_backend.modules.video_composer.service import (
-    PRE_SETTINGS_DEFAULT_QUALITY_PRESET,
     generate_videos,
     reset_interrupted_jobs,
 )
@@ -430,5 +431,18 @@ def test_generate_videos_renders_a_single_recording_end_to_end(
         database.dispose()
 
 
-def test_generate_videos_uses_the_pinned_pre_settings_quality_preset() -> None:
-    assert PRE_SETTINGS_DEFAULT_QUALITY_PRESET == "standard"
+def test_generate_videos_inherits_global_quality_preset(session: Session) -> None:
+    settings = session.query(AppSettings).filter(AppSettings.id == 1).one()
+    settings.quality_preset = "draft"
+    session.commit()
+
+    campaign = Campaign(
+        name="Quality inherit",
+        overlay_config='{"schema_version":1}',
+        overlay_schema_version=1,
+        quality_override=None,
+    )
+    session.add(campaign)
+    session.commit()
+
+    assert resolve_quality(session, quality_override=campaign.quality_override) == "draft"

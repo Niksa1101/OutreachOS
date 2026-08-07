@@ -34,8 +34,12 @@ export type DiagnosticCode =
   | 'sidecar_spawn_failed'
   | 'sidecar_exited'
   | 'handshake_timeout'
+  | 'port_bind_failed'
+  | 'ffmpeg_missing'
+  | 'ffmpeg_unrunnable'
   | 'migration_failed'
   | 'database_newer_than_app'
+  | 'workspace_relocation_failed'
   | 'unknown';
 
 export interface Diagnostic {

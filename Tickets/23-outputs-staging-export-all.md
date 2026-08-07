@@ -8,12 +8,12 @@ Export works mid-batch: only completed jobs are eligible. After a successful exp
 
 **Blocked by:** 15 — Worker pool, job enqueue, and the first render from the UI.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] The Outputs section shows only renders that have not been exported
-- [ ] `Export All` picks a destination seeded from the default export folder and confirms file count and destination before acting
-- [ ] Files are moved, not copied, and the workspace staging area shrinks accordingly
-- [ ] An existing file at the destination is never overwritten; conflicts are reported by name and the remaining files still export
-- [ ] Exporting mid-batch exports only completed jobs and does not disturb running ones
-- [ ] Completed jobs clear from the queue after a successful export; failed jobs remain until dismissed
-- [ ] A partially failed export leaves the app in a consistent state — moved files are gone from staging, unmoved ones are not
+- [x] The Outputs section shows only renders that have not been exported
+- [x] `Export All` picks a destination seeded from the default export folder and confirms file count and destination before acting
+- [x] Files are moved, not copied, and the workspace staging area shrinks accordingly
+- [x] An existing file at the destination is never overwritten; conflicts are reported by name and the remaining files still export
+- [x] Exporting mid-batch exports only completed jobs and does not disturb running ones
+- [x] Completed jobs clear from the queue after a successful export; failed jobs remain until dismissed
+- [x] A partially failed export leaves the app in a consistent state — moved files are gone from staging, unmoved ones are not

@@ -30,6 +30,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, text
 
 from outreachos_backend.core.boot import BootReport
+from outreachos_backend.core.paths import backend_root
 
 __all__ = ["MigrationOutcome", "run_migrations"]
 
@@ -69,9 +70,9 @@ def _alembic_config(engine: Engine) -> Config:
     directory — which is the worst possible failure mode, because it looks
     exactly like a database that was already current.
     """
-    backend_root = Path(__file__).resolve().parents[3]
-    config = Config(str(backend_root / "alembic.ini"))
-    config.set_main_option("script_location", str(backend_root / "alembic"))
+    root = backend_root()
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "alembic"))
 
     # Never `set_main_option("sqlalchemy.url", ...)`: ConfigParser does
     # %-interpolation, and the path is chosen by the user.

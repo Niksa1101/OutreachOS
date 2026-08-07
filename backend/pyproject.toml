@@ -21,6 +21,7 @@ outreachos-render = "outreachos_backend.rendering.cli:main"
 [dependency-groups]
 dev = [
     "mypy>=1.14",
+    "pyinstaller>=6.11",
     "pytest>=8.3",
     # The SSE bus is the only async surface in the application (Q31: everything
     # else is sync `def` endpoints), and its shutdown path is exactly the part
@@ -67,7 +68,9 @@ strict = true
 files = ["src", "tests"]
 # Generated migration files are unannotated `op.` calls that produce dozens of
 # strict-mode errors carrying no signal. Ruff still formats and lints them.
-exclude = ["^alembic/versions/"]
+# `dist/` and `build/` are PyInstaller output — a second copy of the whole
+# package that collides with the real one on module names.
+exclude = ["^alembic/versions/", "^dist/", "^build/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

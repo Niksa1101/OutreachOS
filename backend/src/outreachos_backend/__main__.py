@@ -41,9 +41,11 @@ from outreachos_backend.core.config import LaunchConfig, parse_launch_config
 from outreachos_backend.core.db import Database
 from outreachos_backend.core.events import EventBus
 from outreachos_backend.core.logging import configure_logging
+from outreachos_backend.core.settings_service import persist_ffmpeg_probe
 from outreachos_backend.core.workspace import WorkspaceLayout, prepare_workspace
 from outreachos_backend.modules.video_composer import render_worker, service
-from outreachos_backend.rendering.binaries import resolve_binaries
+from outreachos_backend.rendering.binaries import Binaries, resolve_binaries
+from outreachos_backend.rendering.errors import RenderFatalError, RenderProcessError
 from outreachos_backend.rendering.process import register_shutdown_hook
 from outreachos_backend.rendering.queue.pool import WorkerPool
 
@@ -122,10 +124,56 @@ def _bind(port: int) -> socket.socket:
     sharing one and is precisely the race ADR-0002 removed.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(("127.0.0.1", port))
+    try:
+        sock.bind(("127.0.0.1", port))
+    except OSError as error:
+        # Ticket 29: a marker Rust reads when the @@OOS line never arrives.
+        print(f"outreachos-backend: port_bind_failed: {error}", file=sys.stderr)
+        log.error("port_bind_failed: %s", error)
+        raise SystemExit(3) from error
     sock.listen(128)
     sock.set_inheritable(True)
     return sock
+
+
+def _probe_ffmpeg(config: LaunchConfig, report: BootReport) -> Binaries | None:
+    """Validate bundled FFmpeg before the render worker starts.
+
+    Ticket 29: missing or unrunnable FFmpeg must block boot with a named
+    degraded ``/health`` payload, not leave the app on Campaigns with a dead
+    worker.
+    """
+    if report.status != "ok":
+        return None
+
+    if config.ffmpeg_dir is None:
+        report.status = "degraded"
+        report.diagnostic_code = "ffmpeg_missing"
+        report.detail = (
+            "FFmpeg directory not configured. The packaged build should pass "
+            "--ffmpeg-dir; a dev session should set OOS_FFMPEG_DIR."
+        )
+        log.error("%s", report.detail)
+        return None
+
+    try:
+        return resolve_binaries(config.ffmpeg_dir)
+    except RenderFatalError as error:
+        message = str(error)
+        if "Missing FFmpeg binary" in message or "not configured" in message:
+            report.diagnostic_code = "ffmpeg_missing"
+        else:
+            report.diagnostic_code = "ffmpeg_unrunnable"
+        report.status = "degraded"
+        report.detail = message
+        log.error("FFmpeg is not available: %s", message)
+        return None
+    except RenderProcessError as error:
+        report.status = "degraded"
+        report.diagnostic_code = "ffmpeg_unrunnable"
+        report.detail = str(error)
+        log.error("FFmpeg is not runnable: %s", error)
+        return None
 
 
 def _watch_stdin_for_eof(on_eof: threading.Event) -> None:
@@ -185,6 +233,7 @@ def _open_database(
     # Q60: the migration seeds the singleton; this covers a database somebody
     # deleted the row from.
     migrate.heal_app_settings(database.engine)
+
     return database
 
 
@@ -216,13 +265,11 @@ def _serve(
                 "reset %d interrupted render job(s) left over from a previous session", reset_count
             )
 
-        try:
-            binaries = resolve_binaries(config.ffmpeg_dir)
-        except Exception:
-            # /campaigns/generate still 500s cleanly through get_binaries if a
-            # request reaches it; there is simply nothing for a worker to run.
-            log.warning("FFmpeg is not available; the render worker will not start", exc_info=True)
-        else:
+        binaries = _probe_ffmpeg(config, report)
+        if report.status == "ok" and binaries is not None:
+            with database.session_factory() as session:
+                persist_ffmpeg_probe(session, binaries)
+
             worker_pool = WorkerPool(
                 session_factory=database.session_factory,
                 claim_next=render_worker.claim_next_job,

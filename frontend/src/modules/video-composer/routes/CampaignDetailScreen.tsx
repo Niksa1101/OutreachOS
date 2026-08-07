@@ -14,8 +14,10 @@ import {
 import { CampaignPreviewPane } from '@/modules/video-composer/components/CampaignPreviewPane';
 import { EditorLockBanner } from '@/modules/video-composer/components/EditorLockBanner';
 import { GenerateVideosDialog } from '@/modules/video-composer/components/GenerateVideosDialog';
+import { OutputsSection } from '@/modules/video-composer/components/OutputsSection';
 import { OverlayGeometryForm } from '@/modules/video-composer/components/OverlayGeometryForm';
 import { PresetControls } from '@/modules/video-composer/components/PresetControls';
+import { QualityOverrideControl } from '@/modules/video-composer/components/QualityOverrideControl';
 import { RecordingImportPanel } from '@/modules/video-composer/components/RecordingImportPanel';
 import { RecordingsTable } from '@/modules/video-composer/components/RecordingsTable';
 import { TalkingHeadEditor } from '@/modules/video-composer/components/TalkingHeadEditor';
@@ -32,6 +34,7 @@ export function CampaignDetailScreen() {
   const updateOverlay = useUpdateOverlayConfig();
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateNotice, setGenerateNotice] = useState<string | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   // Local draft, live-synced with drag/resize/typed input; only re-derived
   // from the server when the persisted config itself changes (not on every
@@ -153,10 +156,20 @@ export function CampaignDetailScreen() {
             />
           ) : null}
           <RecordingImportPanel campaignId={data.id} />
+          <QualityOverrideControl
+            campaignId={data.id}
+            qualityOverride={data.quality_override ?? null}
+            locked={data.is_locked}
+          />
           <RecordingsTable
             campaignId={data.id}
             recordings={data.recordings ?? []}
             validationIssues={data.validation.issues ?? []}
+          />
+          <OutputsSection
+            campaignId={data.id}
+            exportNotice={exportNotice}
+            onExportNotice={setExportNotice}
           />
         </div>
       </div>

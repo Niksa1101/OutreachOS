@@ -52,10 +52,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read-only application settings and boot facts */
+        /** Application settings and boot facts */
         get: operations["get_settings_api_v1_settings_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update global application settings */
+        patch: operations["patch_settings_api_v1_settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/settings/clear-cache": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear the workspace render cache */
+        post: operations["post_clear_cache_api_v1_settings_clear_cache_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -114,6 +132,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the campaign quality override */
+        patch: operations["update_campaign_quality_api_v1_campaigns__campaign_id__quality_patch"];
         trace?: never;
     };
     "/api/v1/campaigns/{campaign_id}/overlay": {
@@ -247,6 +282,40 @@ export interface paths {
         get: operations["preview_delete_campaign_api_v1_campaigns__campaign_id__delete_preview_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/outputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List un-exported renders in workspace staging */
+        get: operations["list_campaign_outputs_api_v1_campaigns__campaign_id__outputs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move completed renders out of staging to a destination folder */
+        post: operations["export_campaign_outputs_api_v1_campaigns__campaign_id__export_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -654,6 +723,8 @@ export interface components {
             overlay_config: string;
             /** Overlay Schema Version */
             overlay_schema_version: number;
+            /** @description NULL means inherit the global preset from Settings. */
+            quality_override?: components["schemas"]["QualityPreset"] | null;
             talking_head?: components["schemas"]["TalkingHeadDetail"] | null;
             /**
              * Recordings
@@ -680,6 +751,37 @@ export interface components {
         CampaignListResponse: {
             /** Campaigns */
             campaigns: components["schemas"]["CampaignSummary"][];
+        };
+        /**
+         * CampaignOutputsResponse
+         * @description Campaign Outputs section — un-exported renders only.
+         */
+        CampaignOutputsResponse: {
+            /**
+             * Outputs
+             * @description Final ``.mp4`` files in staging; partial ``.part.mp4`` siblings are excluded.
+             */
+            outputs?: components["schemas"]["StagedOutputItem"][];
+            /**
+             * Exportable Count
+             * @description Completed ``video_render`` jobs whose output file exists and would move on Export All. Mid-batch, waiting/encoding jobs are excluded.
+             */
+            exportable_count: number;
+            /**
+             * Default Export Path
+             * @description Folder picker seed: the campaign's last export destination, else the global default from Settings.
+             */
+            default_export_path?: string | null;
+            /**
+             * Total Size Bytes
+             * @description Combined size of staged output files in bytes.
+             */
+            total_size_bytes: number;
+        };
+        /** CampaignQualityUpdateRequest */
+        CampaignQualityUpdateRequest: {
+            /** @description NULL means inherit the global preset from Settings. */
+            quality_override: components["schemas"]["QualityPreset"] | null;
         };
         /**
          * CampaignStatus
@@ -742,6 +844,11 @@ export interface components {
              */
             warning_count: number;
         };
+        /** ClearCacheResponse */
+        ClearCacheResponse: {
+            /** Bytes Freed */
+            bytes_freed: number;
+        };
         /** ClientLogAccepted */
         ClientLogAccepted: {
             /** Accepted */
@@ -775,6 +882,52 @@ export interface components {
              * @description ISO-8601 UTC from the client clock. Kept separate from the server timestamp the log line carries, because the two can disagree.
              */
             occurred_at?: string | null;
+        };
+        /** ExportAllRequest */
+        ExportAllRequest: {
+            /**
+             * Destination Path
+             * @description Absolute path to an existing folder. Files are moved here, never copied.
+             */
+            destination_path: string;
+        };
+        /** ExportAllResponse */
+        ExportAllResponse: {
+            /** Destination Path */
+            destination_path: string;
+            /**
+             * Moved Count
+             * @description Files successfully moved out of staging.
+             */
+            moved_count: number;
+            /**
+             * Moved Filenames
+             * @description Basenames of files that moved.
+             */
+            moved_filenames?: string[];
+            /**
+             * Conflicts
+             * @description Basenames refused because a file with the same name already exists at the destination. The rest of the batch still exports.
+             */
+            conflicts?: string[];
+            /**
+             * Failures
+             * @description Basenames whose move failed (e.g. permission or disk error). The staging file and queue row are left intact.
+             */
+            failures?: components["schemas"]["ExportFailure"][];
+        };
+        /** ExportFailure */
+        ExportFailure: {
+            /**
+             * Filename
+             * @description Basename of the file that could not be moved.
+             */
+            filename: string;
+            /**
+             * Reason
+             * @description Plain-language reason the move failed.
+             */
+            reason: string;
         };
         /**
          * GeneratePlanResponse
@@ -891,7 +1044,7 @@ export interface components {
              * Diagnostic Code
              * @description Structured degraded reason when `status` is `degraded`.
              */
-            diagnostic_code?: ("workspace_locked" | "migration_failed" | "database_newer_than_app") | null;
+            diagnostic_code?: ("workspace_locked" | "migration_failed" | "database_newer_than_app" | "ffmpeg_missing" | "ffmpeg_unrunnable") | null;
             /** Started At */
             started_at: string;
         };
@@ -1190,7 +1343,7 @@ export interface components {
         };
         /**
          * SettingsResponse
-         * @description DB.md §3.5, plus the boot facts Settings displays alongside them.
+         * @description DB.md §3.5, plus boot facts and live cache size.
          */
         SettingsResponse: {
             quality_preset: components["schemas"]["QualityPreset"];
@@ -1203,7 +1356,7 @@ export interface components {
             default_export_path: string | null;
             /**
              * Ffmpeg Version
-             * @description Cached probe result. NULL until P1 probes.
+             * @description Cached probe of the bundled binary.
              */
             ffmpeg_version: string | null;
             /**
@@ -1211,6 +1364,21 @@ export interface components {
              * @description JSON array from the capability probe.
              */
             detected_encoders: string | null;
+            /**
+             * Detected Encoder
+             * @description The encoder auto-detect would choose (NULL until probed).
+             */
+            detected_encoder: string | null;
+            /**
+             * Cache Size Bytes
+             * @description Total size of the workspace cache directory.
+             */
+            cache_size_bytes: number;
+            /**
+             * Queue Busy
+             * @description True while any render job is waiting or in flight. Quality, encoder, and Clear Cache are locked until the queue is idle.
+             */
+            queue_busy: boolean;
             /** Workspace Path */
             workspace_path: string;
             /** Backend Version */
@@ -1223,6 +1391,20 @@ export interface components {
             migration_head: string | null;
             /** Backend Log Path */
             backend_log_path: string;
+        };
+        /** SettingsUpdateRequest */
+        SettingsUpdateRequest: {
+            quality_preset?: components["schemas"]["QualityPreset"] | null;
+            /**
+             * Encoder Override
+             * @description NULL clears the override and restores auto-detect.
+             */
+            encoder_override?: string | null;
+            /**
+             * Default Export Path
+             * @description NULL clears the saved default export folder.
+             */
+            default_export_path?: string | null;
         };
         /** ShadowConfig */
         ShadowConfig: {
@@ -1263,6 +1445,22 @@ export interface components {
             width: number;
             /** Height */
             height: number;
+        };
+        /**
+         * StagedOutputItem
+         * @description One un-exported render sitting in workspace staging (ticket 23).
+         */
+        StagedOutputItem: {
+            /**
+             * Filename
+             * @description Output basename, e.g. ``Acme Corp.mp4``.
+             */
+            filename: string;
+            /**
+             * Size Bytes
+             * @description On-disk size in bytes.
+             */
+            size_bytes: number;
         };
         /** TalkingHeadAssignRequest */
         TalkingHeadAssignRequest: {
@@ -1521,6 +1719,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patch_settings_api_v1_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_clear_cache_api_v1_settings_clear_cache_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearCacheResponse"];
                 };
             };
             /** @description Error */
@@ -1824,6 +2124,61 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetail"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_campaign_quality_api_v1_campaigns__campaign_id__quality_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignQualityUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2313,6 +2668,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignDeletePreview"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_campaign_outputs_api_v1_campaigns__campaign_id__outputs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOutputsResponse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    export_campaign_outputs_api_v1_campaigns__campaign_id__export_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportAllRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportAllResponse"];
                 };
             };
             /** @description Error */

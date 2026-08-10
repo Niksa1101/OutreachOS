@@ -5,6 +5,7 @@ behind it.
 """
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 
 from tests.conftest import TEST_BOOT_ID, TEST_TOKEN
@@ -112,6 +113,51 @@ async def test_a_trailing_slash_404s_rather_than_redirecting(
     response = await client.request("GET", path)
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
+
+
+# --- CORS preflight (Q73) --------------------------------------------------
+
+
+def _routed_methods(node: object) -> set[str]:
+    """Every verb the route tree serves.
+
+    Recursive, and it follows ``original_router`` as well as ``routes``:
+    ``include_router`` leaves a lazy ``_IncludedRouter`` node on this FastAPI
+    version rather than flattening the sub-router onto ``app.routes``.
+    """
+    methods: set[str] = set(getattr(node, "methods", None) or ())
+    for child in getattr(node, "routes", None) or ():
+        methods |= _routed_methods(child)
+    included = getattr(node, "original_router", None)
+    if included is not None:
+        methods |= _routed_methods(included)
+    return methods - {"HEAD", "OPTIONS"}
+
+
+async def test_every_routed_method_survives_the_preflight(
+    app: FastAPI, anonymous_client: AsyncClient
+) -> None:
+    # A verb the router uses but the CORS allowlist omits fails in the browser
+    # before the request reaches an endpoint: the webview sees an opaque fetch
+    # rejection and the server logs nothing at all. Derived from the route
+    # tree rather than hard-coded so adding a route with a new verb cannot
+    # reintroduce the gap silently.
+    routed = _routed_methods(app)
+    # Guards the walk itself: an empty set would make the loop below vacuous
+    # and this test green forever.
+    assert {"GET", "POST", "PUT", "PATCH", "DELETE"} <= routed
+
+    for method in sorted(routed):
+        response = await anonymous_client.options(
+            "/health",
+            headers={
+                "Origin": "http://tauri.localhost",
+                "Access-Control-Request-Method": method,
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+        assert response.status_code == 200, f"{method} is not in allow_methods"
+        assert response.headers["access-control-allow-origin"] == "http://tauri.localhost"
 
 
 # --- /client-logs (Q64) ----------------------------------------------------

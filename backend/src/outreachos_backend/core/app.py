@@ -78,7 +78,10 @@ def create_app(*, dev: bool = False) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[*_WEBVIEW_ORIGINS, *(_DEV_ORIGINS if dev else ())],
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        # Every verb the router tree actually uses. A verb missing here fails at
+        # the preflight, before the request reaches an endpoint, so it surfaces
+        # in the UI as an opaque transport error and leaves no server-side log.
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["authorization", "content-type"],
         # Q73: not merely safe, load-bearing. This is what keeps the allowlist
         # honest if anyone later reaches for `*` — the browser refuses the
